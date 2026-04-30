@@ -5,6 +5,7 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Status: Active Development](https://img.shields.io/badge/Status-Active%20Development-green.svg)]()
 [![Architecture: Federated Edge](https://img.shields.io/badge/Architecture-Federated%20Edge-orange.svg)]()
+[![GPU: Adreno 702 GF(48)](https://img.shields.io/badge/GPU-Adreno%20702%20GF(48)-purple.svg)]()
 
 SAIS is a decentralized, edge-native, open-source operating system for managing closed-loop resource environments. It is designed to run autonomously on a solar-powered, ruggedized edge node deployed in any field, ranch, or off-grid environment — with zero dependency on cloud infrastructure, corporate servers, or subscription services.
 
@@ -55,6 +56,18 @@ SAIS extends its intelligence to the sky. By integrating the [Adaptive Engine's 
 - The swarm coordinates via a peer-to-peer DDS mesh, using acoustic Grassmann curvature to maintain formation without a central ground station.
 - The swarm acts as a collective ultrasonic sensor array for non-contact soil moisture and biomass estimation.
 
+### NGC Quantum-Inspired Edge GPU
+
+The Uno Q's **Adreno 702 GPU** is the most powerful and underutilized component in the SAIS hardware stack. By integrating the [NGC-Quantum-CUDA / GeoFlow kernels](docs/NGC_QUANTUM_INTEGRATION.md), SAIS deploys quantum-inspired GF(48) geometric computation directly to the edge — achieving up to **1,100x speedup** over CPU-only baselines with no cloud dependency.
+
+| Uno Q Component | Role | NGC Quantum Contribution |
+|---|---|---|
+| STM32U585 MCU | Real-time sensor ingestion | Basic PSMSL anomaly detection |
+| Cortex-A53 (Linux) | Intelligence Layer orchestration | GeoFlow pipeline management |
+| **Adreno 702 GPU** | **Edge quantum acceleration** | **GF(48) packed kernels — Grover's search, hyperspectral fusion, curvature analysis** |
+
+The Leibniz-Bocker curvature metric ($\Omega$) produced by the GPU forms the mathematically provable basis for the **Proof of Stewardship** report, signed by the Auditor Container for the Carbon-Plus bond market.
+
 ### The Auditor Container
 
 Every sensor reading and actuator command is cryptographically signed using a private key stored in the node's secure enclave. These records form an **immutable ledger of stewardship**.
@@ -83,7 +96,9 @@ sais/
 │   ├── INTELLIGENCE_LAYER.md         # Edge AI, RAG, and On-Device LLM design
 │   ├── DRONE_SWARM_CAPABILITIES.md   # Ultrasonic echolocation swarm architecture
 │   ├── ADAPTIVE_AUDIO_INTEGRATION.md # PSMSL Adaptive Engine integration plan
-│   └── NGC_INTEGRATION_PLAN.md       # NGC GeoFlow kernel integration plan
+│   ├── NGC_INTEGRATION_PLAN.md       # NGC GeoFlow kernel integration plan
+│   ├── NGC_QUANTUM_INTEGRATION.md    # GF(48) quantum-inspired Adreno GPU integration
+│   └── STRATEGIC_INTEGRATION_ASSESSMENT.md  # Full ecosystem audit (48 repos)
 ├── firmware/
 │   ├── components/
 │   │   └── adaptive-engine/          # PSMSL core for structural/acoustic analysis
