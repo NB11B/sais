@@ -31,29 +31,33 @@ A **Sovereign Node** is a self-contained, solar-powered edge controller that man
 
 ### Hardware Architecture
 
-The node uses a **Dual-Core Edge Controller** design:
+The node uses a **Dual-Core Edge Controller** design, optimized for the [Arduino UNO Q](docs/HARDWARE_SPEC.md) (STM32U585 + QRB2210) to provide a complete, low-cost ($165) entry point:
 
 | Layer | Component | Role |
 |---|---|---|
-| **Controller (Real-Time)** | ESP32-S3 (RTOS) | Deterministic I/O: gate motors, pumps, livestock sensors, nutrient dosing |
-| **SCADA/Compute (Intelligence)** | NXP i.MX 8M (Industrial SBC) | Containerized logic: MQTT broker, DDS middleware, ZKP Auditor, C2 Dashboard |
+| **Controller (Real-Time)** | STM32U585 / ESP32-S3 | Deterministic I/O: gate motors, pumps, livestock sensors, nutrient dosing |
+| **SCADA/Compute (Intelligence)** | QRB2210 / i.MX 8M | Containerized logic: MQTT broker, DDS middleware, ZKP Auditor, C2 Dashboard |
 | **Enclosure** | IP67 die-cast, fanless | Field-deployable, no moving parts, no consumables |
-| **Storage** | Industrial eMMC | No SD cards; rated for continuous write cycles |
+| **Storage** | Onboard eMMC | No SD cards; rated for continuous write cycles |
 | **Power** | Solar + LiFePO4 battery | Off-grid operation indefinitely |
 
-### Communication Protocol
+### The Intelligence Layer
 
-SAIS uses **DDS (Data Distribution Service)** — the same peer-to-peer middleware used in aerospace flight control, NATO military systems, and ROS 2 robotics — as its communication backbone. There is no central broker. If any node fails, the mesh continues operating.
+SAIS solves the cognitive overload of traditional SCADA systems by acting as an **active farm intelligence agent**. The `sais-intelligence` container runs entirely at the edge:
+- **Edge Inference (TinyML):** Runs anomaly detection and predictive maintenance models on raw telemetry.
+- **Local Knowledge Graph (RAG):** A vector database containing agronomic best practices, historical logs, and equipment manuals.
+- **On-Device LLM:** Synthesizes anomalies and RAG context into natural-language alerts for the farmer, explaining every automated decision it makes.
 
-Data structures are mapped to **OADA (Open Agricultural Data Alliance)** schemas, ensuring interoperability with any OADA-compliant application without custom drivers.
+### Autonomous Drone Swarms (Artificial Bats)
 
-### The C2 Dashboard
-
-The Command and Control Dashboard runs locally on the node, accessible via any browser on the local LAN or mesh. It operates as a **Federated Orchestrator**: it sends code to the nodes; the nodes return only results. Raw sensor data never leaves the node without explicit operator authorization.
+SAIS extends its intelligence to the sky. By integrating the [Adaptive Engine's PSMSL core](docs/ADAPTIVE_AUDIO_INTEGRATION.md), SAIS enables **autonomous, decentralized drone swarms operating as artificial bats**. 
+- Drones use **ultrasonic echolocation** (10ms FM chirps) to navigate GPS-denied environments like dense crop canopies or indoor habitats.
+- The swarm coordinates via a peer-to-peer DDS mesh, using acoustic Grassmann curvature to maintain formation without a central ground station.
+- The swarm acts as a collective ultrasonic sensor array for non-contact soil moisture and biomass estimation.
 
 ### The Auditor Container
 
-Every sensor reading and actuator command is cryptographically signed using a private key stored in the node's ARM TrustZone secure enclave. These records form an **immutable ledger of stewardship** — a machine-generated, cryptographically verifiable history of what happened on this land, when, and with what inputs.
+Every sensor reading and actuator command is cryptographically signed using a private key stored in the node's secure enclave. These records form an **immutable ledger of stewardship**.
 
 This ledger is the foundation of the **"Proof of Stewardship" report** — the verified ecological data that financial institutions need to issue Carbon-Plus bonds, bypassing the legacy MRV industry entirely.
 
@@ -71,24 +75,26 @@ Every hour a Sovereign Node spends in a field is a stress test that validates it
 
 ```
 sais/
-├── docs/                    # Architecture, specifications, and strategic documents
-│   ├── ARCHITECTURE.md      # Full system architecture reference
-│   ├── STRATEGIC_VISION.md  # Farm-to-Orbit strategic vision document
-│   ├── HARDWARE_SPEC.md     # Hardware bill of materials and enclosure spec
-│   ├── PROTOCOL_SPEC.md     # DDS/OADA communication protocol specification
-│   └── AUDITOR_SPEC.md      # Cryptographic auditor and ZKP signing specification
-├── firmware/                # ESP32-S3 RTOS firmware (Controller Layer)
+├── docs/
+│   ├── ARCHITECTURE.md               # Full system architecture reference
+│   ├── STRATEGIC_VISION.md           # Farm-to-Orbit strategic vision document
+│   ├── HARDWARE_SPEC.md              # Hardware BOM and enclosure spec (UNO Q focus)
+│   ├── SCADA_SECURITY_SPEC.md        # NASA Life-Support Grade security spec
+│   ├── INTELLIGENCE_LAYER.md         # Edge AI, RAG, and On-Device LLM design
+│   ├── DRONE_SWARM_CAPABILITIES.md   # Ultrasonic echolocation swarm architecture
+│   ├── ADAPTIVE_AUDIO_INTEGRATION.md # PSMSL Adaptive Engine integration plan
+│   └── NGC_INTEGRATION_PLAN.md       # NGC GeoFlow kernel integration plan
+├── firmware/
+│   ├── components/
+│   │   └── adaptive-engine/          # PSMSL core for structural/acoustic analysis
 │   └── README.md
-├── hardware/                # Enclosure designs, PCB schematics, BOM
-│   └── README.md
-├── software/                # Containerized software stack (SCADA/Compute Layer)
-│   └── README.md
-├── scripts/                 # Deployment, provisioning, and OTA update scripts
-│   └── README.md
-├── CONTRIBUTING.md          # How to contribute
-├── CODE_OF_CONDUCT.md       # Community standards
-├── SECURITY.md              # Security policy and responsible disclosure
-└── LICENSE                  # GNU AGPL v3
+├── hardware/                         # Enclosure designs, PCB schematics, BOM
+├── software/                         # Containerized software stack
+├── scripts/                          # Deployment, provisioning, and OTA scripts
+├── CONTRIBUTING.md                   # How to contribute
+├── CODE_OF_CONDUCT.md                # Community standards
+├── SECURITY.md                       # Security policy and responsible disclosure
+└── LICENSE                           # GNU AGPL v3
 ```
 
 ---
@@ -96,31 +102,13 @@ sais/
 ## Engineering Roadmap
 
 ### Sprint 1: "Iron" — Gateway Hardware
-**Deliverable:** A prototype Sovereign Node in an IP67 enclosure, validated for 30 days of continuous off-grid operation.
-
-Focus areas: power architecture, dual-core validation, secure enclave provisioning, thermal management.
+**Deliverable:** A prototype Sovereign Node (UNO Q) in an IP67 enclosure, validated for 30 days of continuous off-grid operation.
 
 ### Sprint 2: "Plumbing" — DDS/MQTT Mesh
-**Deliverable:** A functional mesh of three Sovereign Nodes communicating without a server, surviving a complete network blackout, and autonomously executing an irrigation or feeding cycle.
-
-Focus areas: DDS peer discovery, LoRa/Micro XRCE-DDS bridge, OTA update mechanism, blackout scenario validation.
+**Deliverable:** A functional mesh of three Sovereign Nodes communicating without a server, surviving a complete network blackout, and autonomously executing an irrigation cycle.
 
 ### Sprint 3: "Sovereignty" — The Auditor Container
 **Deliverable:** A locally hosted C2 Dashboard rendering a cryptographically signed "Proof of Stewardship" report from live node data.
-
-Focus areas: ZKP signing pipeline, OADA data mapping, dashboard UI, MRV report generation.
-
----
-
-## Strategic Context
-
-SAIS is designed to structurally undermine three incumbent failure modes:
-
-1. **Input monopoly and the margin squeeze** — by reducing operational costs and enabling direct ecological revenue streams that bypass commodity markets.
-2. **Data extractivism** — by making it architecturally impossible for any third party to access raw farm data without explicit operator authorization.
-3. **Financialization of farmland** — by transforming the farm from a low-margin commodity factory into a high-margin producer of verified ecological assets, providing a viable economic path for the next generation of operators without selling the land.
-
-For the full strategic analysis, see [`docs/STRATEGIC_VISION.md`](docs/STRATEGIC_VISION.md).
 
 ---
 
@@ -137,12 +125,6 @@ Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) before submitting a pull reques
 SAIS is released under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. This means any derivative work — including network-deployed services — must also be released under the same license. This is a deliberate choice: it prevents corporations from taking the open-source core, wrapping it in a proprietary service, and selling it back to the farmers it was built to liberate.
 
 See [`LICENSE`](LICENSE) for the full text.
-
----
-
-## Contact
-
-**Nathanael J. Bocker**
 
 ---
 
