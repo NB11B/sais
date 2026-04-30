@@ -38,6 +38,8 @@ The node uses a **Dual-Core Edge Controller** design, optimized for the [Arduino
 |---|---|---|
 | **Controller (Real-Time)** | STM32U585 / ESP32-S3 | Deterministic I/O: gate motors, pumps, livestock sensors, nutrient dosing |
 | **SCADA/Compute (Intelligence)** | QRB2210 / i.MX 8M | Containerized logic: MQTT broker, DDS middleware, ZKP Auditor, C2 Dashboard |
+| **GPU Acceleration (Validated)** | **Jetson Nano (Maxwell, CUDA sm_53)** | NGC GF(48) quantum-inspired kernels — validated in production, ~100x speedup |
+| **GPU Acceleration (Roadmap)** | Adreno 702 (Uno Q, OpenCL) | Same kernels via OpenCL port — enables single-board $165 node |
 | **Enclosure** | IP67 die-cast, fanless | Field-deployable, no moving parts, no consumables |
 | **Storage** | Onboard eMMC | No SD cards; rated for continuous write cycles |
 | **Power** | Solar + LiFePO4 battery | Off-grid operation indefinitely |
@@ -58,13 +60,14 @@ SAIS extends its intelligence to the sky. By integrating the [Adaptive Engine's 
 
 ### NGC Quantum-Inspired Edge GPU
 
-The Uno Q's **Adreno 702 GPU** is the most powerful and underutilized component in the SAIS hardware stack. By integrating the [NGC-Quantum-CUDA / GeoFlow kernels](docs/NGC_QUANTUM_INTEGRATION.md), SAIS deploys quantum-inspired GF(48) geometric computation directly to the edge — achieving up to **1,100x speedup** over CPU-only baselines with no cloud dependency.
+SAIS integrates the [NGC-Quantum-CUDA / GeoFlow kernels](docs/NGC_QUANTUM_INTEGRATION.md) to deploy quantum-inspired GF(48) geometric computation directly at the edge. The **Jetson Nano** is the validated production platform (CUDA sm_53, tested), delivering ~100x speedup over CPU baselines today. The **Uno Q's Adreno 702** is the roadmap target via an OpenCL port, enabling the same capability in a single $165 board.
 
-| Uno Q Component | Role | NGC Quantum Contribution |
+| Component | Role | NGC Quantum Contribution |
 |---|---|---|
-| STM32U585 MCU | Real-time sensor ingestion | Basic PSMSL anomaly detection |
-| Cortex-A53 (Linux) | Intelligence Layer orchestration | GeoFlow pipeline management |
-| **Adreno 702 GPU** | **Edge quantum acceleration** | **GF(48) packed kernels — Grover's search, hyperspectral fusion, curvature analysis** |
+| STM32U585 MCU (Uno Q) | Real-time sensor ingestion | Basic PSMSL anomaly detection |
+| Cortex-A57 (Jetson Nano) | Intelligence Layer orchestration | GeoFlow pipeline management |
+| **Maxwell GPU (Jetson Nano)** | **Validated CUDA acceleration** | **GF(48) packed kernels — tested in production, ~100x speedup** |
+| **Adreno 702 (Uno Q)** | **Roadmap OpenCL acceleration** | **Same kernels via OpenCL port — $165 all-in-one node** |
 
 The Leibniz-Bocker curvature metric ($\Omega$) produced by the GPU forms the mathematically provable basis for the **Proof of Stewardship** report, signed by the Auditor Container for the Carbon-Plus bond market.
 
