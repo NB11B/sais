@@ -39,6 +39,7 @@ All architectural decisions are subordinate to four inviolable constraints:
 - Deterministic actuator control (gate motors, irrigation valves, nutrient pumps, lighting)
 - Pre-programmed automation sequence execution (irrigation schedules, feeding cycles)
 - Watchdog timer management — the Controller Layer must never halt
+- **Local Intelligence:** Runs the lightweight NGC GeoFlow kernel for real-time phase transition detection (e.g., crop stress, equipment failure) directly on the microcontroller, without requiring the SCADA/Compute Layer.
 
 **Key Design Requirement:** The Controller Layer operates completely independently of the SCADA/Compute Layer. It communicates with the intelligence layer via a defined serial/SPI interface, but it does not depend on it. If the SCADA/Compute Layer crashes, reboots, or is being updated, the Controller Layer continues executing its automation sequences without interruption.
 
@@ -66,6 +67,16 @@ All architectural decisions are subordinate to four inviolable constraints:
 | `sais-auditor` | Cryptographic signing pipeline — signs all operational events and maintains the immutable ledger |
 | `sais-dashboard` | C2 Dashboard — local web interface for operator monitoring and control |
 | `sais-ota` | OTA update agent — manages signed firmware and container image updates |
+| `sais-ngc-engine` | Nested Geometric Computation (NGC) engine — runs the PSMSL relational processing engine for macro-level phase transition detection |
+| `sais-intelligence` | On-device AI decision engine (TinyML + RAG + LLM) for automated control and natural-language alerts |
+
+#### The Intelligence Layer
+The `sais-intelligence` container is the on-device decision engine that ingests all sensor streams (NGC, Adaptive Engine, SCADA telemetry). It consists of:
+- **Edge Inference Engine (TinyML):** Runs lightweight anomaly detection and predictive maintenance models (e.g., TensorFlow Lite for Microcontrollers).
+- **Local Knowledge Graph (RAG):** A vector database containing agronomic best practices, historical logs, and equipment manuals.
+- **On-Device LLM (Advisory Agent):** A highly quantized Large Language Model that synthesizes anomalies and RAG context into natural-language alerts for the farmer.
+
+This layer automates routine control decisions (e.g., throttling a failing pump) and surfaces actionable intelligence to the C2 Dashboard, operating entirely at the edge without cloud dependency.
 
 **Secure Enclave:** ARM TrustZone on the i.MX 8M is used to store the node's cryptographic private key. The key is never exposed to the application layer. All signing operations are performed inside the secure enclave.
 
