@@ -1,31 +1,31 @@
 # Autonomous Drone Swarms in SAIS
 
-**Version:** 0.1.0-draft
+**Version:** 0.1.1-draft
 **Status:** Active Development
 
 ---
 
 ## Overview
 
-The integration of the Adaptive Engine's PSMSL (Phi-Scaled Mirrored Semantic Logic) core into the Sovereign Ag-Infrastructure Stack (SAIS) unlocks a profound new capability: **autonomous, decentralized drone swarms**. 
+The integration of the Adaptive Engine's PSMSL (Phi-Scaled Mirrored Semantic Logic) core into the Sovereign Ag-Infrastructure Stack (SAIS) unlocks a profound new capability: **autonomous, decentralized drone swarms operating as artificial bats**. 
 
-By leveraging the PSMSL core's spatial decomposition and spectral analysis algorithms, SAIS enables drone swarms to operate, navigate, and sense collectively in environments where traditional GPS and cloud-based coordination fail. This document outlines how the SAIS architecture supports swarm operations across both agricultural and aerospace domains.
+By leveraging the PSMSL core's spatial decomposition and spectral analysis algorithms, SAIS enables drone swarms to navigate, coordinate, and sense collectively using **ultrasonic echolocation**. This allows the swarm to operate in environments where traditional GPS, optical cameras, and cloud-based coordination fail — such as dense crop canopies, indoor vertical farms, or orbital habitats.
 
 ---
 
-## 1. GPS-Denied Acoustic Navigation
+## 1. Ultrasonic Echolocation Navigation
 
-The most significant vulnerability of modern drone swarms is their reliance on Global Navigation Satellite Systems (GNSS/GPS) [1]. In dense crop canopies, indoor vertical farms, or orbital habitats, GPS is either degraded or entirely unavailable.
+The most significant vulnerability of modern drone swarms is their reliance on Global Navigation Satellite Systems (GNSS/GPS) and optical SLAM (Simultaneous Localization and Mapping), both of which fail in dense, dark, or featureless environments.
 
-The SAIS Adaptive Engine solves this using **Passive Acoustic Positioning**.
+SAIS solves this by mimicking the biological echolocation of bats [1].
 
-### How It Works
-1. **The Anchor Nodes:** Stationary SAIS Sovereign Nodes (e.g., mounted on fence posts or habitat bulkheads) emit a continuous, low-amplitude acoustic or ultrasonic signature.
-2. **The Swarm:** Each drone is equipped with a lightweight microphone array (e.g., a 4-mic or 7-mic configuration).
-3. **Spatial Decomposition:** The drone's onboard MCU runs the `spatial_decomposition_psmsl` module. It calculates the Direction of Arrival (DOA) of the anchor signatures with high precision.
-4. **Triangulation:** By calculating the DOA from multiple anchors, the drone triangulates its exact position in 3D space without any external RF signals [2].
+### The Artificial Bat Architecture
+1. **The Emitter (Mouth):** Each drone is equipped with an ultrasonic transducer that emits a 10ms Frequency-Modulated (FM) chirp, sweeping from 100 kHz down to 20 kHz.
+2. **The Receivers (Ears):** A binaural (two-mic) or multi-mic ultrasonic array receives the returning echoes.
+3. **PSMSL Processing:** The drone's onboard MCU runs the `spatial_decomposition_psmsl` module. It matches the returning acoustic peaks to the emitted chirp.
+4. **Spatial Mapping:** The time-delay of the echo determines the distance to the object, while the inter-aural time difference (the microsecond delay between the sound hitting the left vs. right microphone) determines the azimuth [1].
 
-This allows a swarm to navigate a complex indoor or canopy environment purely by "listening" to the geometry of the space.
+This allows a drone to fly through a pitch-black orchard canopy or a smoke-filled habitat module at 5 m/s, mapping obstacles in real-time purely by "listening" to the geometry of the space.
 
 ---
 
@@ -39,23 +39,23 @@ Each drone in the swarm runs a lightweight DDS client (Micro XRCE-DDS). The dron
 - Velocity and heading vectors
 - Collision avoidance telemetry
 
-Because the PSMSL core calculates the Grassmann curvature (Ω) of the acoustic field, drones can detect the acoustic signature of *other drones* in the swarm. This allows them to maintain optimal spacing and formation organically, mimicking the flocking behavior of birds, without requiring a central coordinator [3].
+Because the PSMSL core calculates the Grassmann curvature (Ω) of the acoustic field, drones can detect the ultrasonic chirp signatures of *other drones* in the swarm. This gives the swarm an organic, physics-based collision avoidance and formation-keeping mechanism — analogous to the lateral line organ in schooling fish or the acoustic coordination of a bat colony — without requiring a central coordinator.
 
 ---
 
-## 3. Collective Sensing and Intelligence
+## 3. Collective Ultrasonic Sensing
 
-A single drone carrying a hyperspectral camera is limited by its battery life and field of view. A swarm of SAIS-enabled drones acts as a single, distributed sensor array.
+A single drone carrying an optical camera is limited by line-of-sight and ambient light. A swarm of SAIS-enabled drones acts as a single, distributed ultrasonic sensor array.
 
-### Agricultural Application: Hyperspectral Crop Mapping
-- **Parallel Execution:** A swarm of 10 drones can map a 1,000-acre field in a fraction of the time of a single drone [4].
-- **Multi-Angle Spectral Analysis:** By flying in a coordinated formation, the swarm captures the same crop canopy from multiple angles simultaneously. The SAIS Intelligence Layer fuses these angles to eliminate specular reflection and soil background noise, dramatically increasing the accuracy of NDVI (Normalized Difference Vegetation Index) and chlorophyll stress calculations [5].
-- **Edge Fusion:** The drones do not stream raw video back to the farmer. They process the spectral data onboard using the PSMSL FFT pipeline, and only transmit the geometric phase shifts (e.g., "Sector 4 is entering drought stress") over the DDS mesh to the C2 Dashboard.
+### Agricultural Application: Acoustic Soil & Biomass Sensing
+- **Canopy Penetration:** Optical cameras cannot see the soil beneath a dense corn canopy. Ultrasonic pulses, however, penetrate the foliage. The returning echo signature changes based on the acoustic impedance of the ground, allowing the swarm to map soil moisture content without physical contact.
+- **Biomass Estimation:** By analyzing the scattering of the ultrasonic chirp as it passes through the crop, the PSMSL FFT pipeline can estimate total plant biomass and structural density.
+- **Edge Fusion:** The drones process the spectral data onboard and only transmit the compressed geometric phase output (e.g., "Sector 4 soil moisture is dropping") over the DDS mesh to the C2 Dashboard.
 
 ### Aerospace Application: Habitat Hull Inspection
-In an orbital habitat, micro-meteoroid impacts can cause microscopic fractures that are invisible to the naked eye but emit high-frequency acoustic stress waves.
+In an orbital habitat, micro-meteoroid impacts can cause microscopic fractures that are invisible to optical cameras but emit high-frequency acoustic stress waves.
 - A swarm of micro-drones continuously patrols the habitat interior.
-- Using the `room_mode_detector_psmsl` module, the swarm listens for the specific resonant frequencies of hull fatigue.
+- Using the `room_mode_detector_psmsl` module, the swarm listens for the specific ultrasonic resonant frequencies of hull fatigue.
 - When a drone detects an anomaly, it alerts the swarm via DDS. The swarm converges on the location, using their combined microphone arrays to triangulate the exact millimeter of the micro-fracture via spatial decomposition.
 
 ---
@@ -66,21 +66,17 @@ The drone swarm capability perfectly encapsulates the SAIS Farm-to-Orbit thesis.
 
 | Capability | Agricultural Farm | Orbital Habitat |
 |---|---|---|
-| **Navigation** | Navigating under dense orchard canopies | Navigating inside a GPS-denied space station |
+| **Navigation** | Ultrasonic echolocation under dense, dark canopies | Ultrasonic echolocation inside a GPS-denied space station |
 | **Coordination** | Peer-to-peer collision avoidance over a field | Peer-to-peer collision avoidance in zero-G |
-| **Sensing** | Multi-angle hyperspectral crop stress detection | Multi-angle acoustic hull fracture detection |
+| **Sensing** | Acoustic soil moisture and biomass estimation | Acoustic hull fracture and leak detection |
 
-By treating the swarm not as a collection of individual vehicles, but as a single, distributed Sovereign Node, SAIS provides a mathematically rigorous, fully decentralized platform for autonomous operations in any closed-loop environment.
+By treating the swarm not as a collection of individual vehicles, but as a single, distributed Sovereign Node equipped with biological-grade echolocation, SAIS provides a mathematically rigorous, fully decentralized platform for autonomous operations in any closed-loop environment.
 
 ---
 
 ## References
 
-[1] W. Power, "Autonomous Navigation for Drone Swarms in GPS-Denied Environments," *pmc.ncbi.nlm.nih.gov*. [Online]. Available: https://pmc.ncbi.nlm.nih.gov/articles/PMC7256583/
-[2] "Passive acoustic detection and localization of drones using MEMS microphones," *acta-acustica.edpsciences.org*. [Online]. Available: https://acta-acustica.edpsciences.org/articles/aacus/full_html/2026/01/aacus250134/aacus250134.html
-[3] "Drone Swarm Navigation in GNSS-Challenged and Cluttered Environments," *medium.com*. [Online]. Available: https://medium.com/@gwrx2005/drone-swarm-navigation-in-gnss-challenged-and-cluttered-environments-d50388bc31b3
-[4] "Swarm drone barriers in precision agriculture," *patsnap.com*. [Online]. Available: https://www.patsnap.com/resources/blog/articles/swarm-drone-barriers-in-precision-agriculture/
-[5] L. Xu, "Leveraging UAV hyperspectral imaging for crop physiology," *sciencedirect.com*. [Online]. Available: https://www.sciencedirect.com/science/article/pii/S2643651525001475
+[1] I. Eliakim, Z. Cohen, G. Kosa, and Y. Yovel, "A fully autonomous terrestrial bat-like acoustic robot," *PLoS Comput Biol*, vol. 14, no. 9, p. e1006406, Sep. 2018. [Online]. Available: https://pmc.ncbi.nlm.nih.gov/articles/PMC6126821/
 
 ---
 
