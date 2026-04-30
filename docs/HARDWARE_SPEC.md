@@ -35,6 +35,20 @@ This document defines the hardware requirements for the Sovereign Node — the p
 - Deterministic task scheduling with documented worst-case execution times for all control loops
 - Rollback partition for OTA firmware updates
 
+### Alternative Reference: Arduino UNO R4 WiFi (Qwiic)
+
+| Parameter | Requirement | UNO R4 WiFi Value |
+|---|---|---|
+| **Architecture** | 32-bit | Renesas RA4M1 (Arm® Cortex®-M4) [1] |
+| **Clock Speed** | ≥ 48 MHz | 48 MHz [1] |
+| **Flash** | ≥ 256 KB | 256 KB [1] |
+| **SRAM** | ≥ 32 KB | 32 KB [1] |
+| **GPIO** | ≥ 14 pins | 14 Digital, 6 Analog [1] |
+| **Communication** | I2C, UART, SPI | Qwiic I2C connector (3.3V) [2] |
+| **Wireless** | Optional | On-board ESP32-S3 (Wi-Fi/BLE) [1] |
+
+**Rationale:** The UNO R4 WiFi is an excellent rapid-prototyping alternative. The integrated Qwiic connector allows for instant, solderless integration of I2C sensor chains, which aligns perfectly with the "all-in-one" prototyping philosophy. While its 32 KB SRAM is constrained compared to the ESP32-S3, it is sufficient to run a highly optimized, low-node-count version of the NGC GeoFlow kernel ($O(k)$ memory footprint). The built-in ESP32-S3 handles the network stack, leaving the RA4M1 entirely dedicated to deterministic control and geometric computation.
+
 ---
 
 ## SCADA/Compute Layer (Intelligence)
@@ -53,7 +67,19 @@ This document defines the hardware requirements for the Sovereign Node — the p
 | **Connectivity** | Gigabit Ethernet, USB | GbE, USB 3.0, USB 2.0 |
 | **Wireless** | Optional | Via M.2 or USB module |
 
-**Critical Requirement:** Consumer-grade SBCs (Raspberry Pi, Orange Pi, etc.) are explicitly not supported for production deployments. They use SD card storage, which fails under continuous write cycles, and are not rated for industrial temperature ranges or continuous unattended operation.
+**Critical Requirement:** Consumer-grade SBCs (Raspberry Pi 4, Orange Pi, etc.) using SD card storage are explicitly not supported for production deployments, as SD cards fail under continuous write cycles [5].
+
+### Alternative Reference: Raspberry Pi Compute Module 4 (CM4) / Pi 5
+
+| Parameter | Requirement | CM4 / Pi 5 Value |
+|---|---|---|
+| **Architecture** | ARM Cortex-A, 64-bit | Cortex-A72 (CM4) [3] / Cortex-A76 (Pi 5) [4] |
+| **Clock Speed** | ≥ 1.5 GHz | 1.5 GHz (CM4) / 2.4 GHz (Pi 5) |
+| **RAM** | ≥ 1 GB LPDDR4 | 1–8 GB |
+| **Storage** | Industrial eMMC or NVMe | 8–32 GB onboard eMMC (CM4) [3] / NVMe via PCIe (Pi 5) [4] |
+| **Operating Temperature** | −40°C to +85°C (industrial) | −40°C to +85°C (CM4 extended temp variants) [6] |
+
+**Rationale:** The Raspberry Pi ecosystem offers unmatched community support and rapid development velocity. For SAIS deployments, the **Compute Module 4 (CM4) with onboard eMMC** is the only acceptable Pi variant for production, as standard SD-card-based Pis suffer from unacceptable storage failure rates in high-write SCADA environments [5]. Recent CM4 variants also support extended industrial temperature ranges (-40°C to +85°C) [6]. The Pi 5 offers massive compute overhead for the NGC PSMSL engine, but requires active cooling or massive passive heatsinks, making it harder to seal in an IP67 enclosure compared to the CM4 or i.MX 8M.
 
 ### Storage Requirements
 
@@ -170,6 +196,17 @@ The Controller Layer supports the following sensor interface standards:
 | Enclosure | Custom IP67 die-cast aluminum | 1 | See mechanical drawings |
 | M12 Connectors | Binder Series 713 | 6 | External I/O |
 | DIN Rail | 35 mm aluminum, 200 mm | 1 | Internal mounting |
+
+---
+
+## References
+
+[1] Arduino, "Arduino® UNO R4 WiFi," *docs.arduino.cc*. [Online]. Available: https://docs.arduino.cc/hardware/uno-r4-wifi
+[2] SparkFun, "SparkFun Arduino UNO R4 WiFi Qwiic Kit Hookup Guide," *learn.sparkfun.com*. [Online]. Available: https://learn.sparkfun.com/tutorials/sparkfun-arduino-uno-r4-wifi-qwiic-kit-hookup-guide/all
+[3] Raspberry Pi, "Raspberry Pi Compute Module 4 Product Brief," *pip.raspberrypi.com*. [Online]. Available: https://pip.raspberrypi.com/documents/RP-008169-DS-cm4-product-brief.pdf
+[4] Raspberry Pi, "Raspberry Pi 5 Product Brief," *pip.raspberrypi.com*. [Online]. Available: https://pip.raspberrypi.com/documents/RP-008348-DS-raspberry-pi-5-product-brief.pdf
+[5] Industrial Monitor Direct, "Raspberry Pi Edge Deployment Failures: Root Causes and Solutions," *industrialmonitordirect.com*. [Online]. Available: https://industrialmonitordirect.com/blogs/knowledgebase/raspberry-pi-edge-deployment-failures-root-causes-and-solutions
+[6] Raspberry Pi, "New extended temperature range for Compute Module 4," *raspberrypi.com*. [Online]. Available: https://www.raspberrypi.com/news/new-extended-temperature-range-for-compute-module-4/
 
 ---
 
