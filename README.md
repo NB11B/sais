@@ -87,6 +87,23 @@ This ledger is the foundation of the **"Proof of Stewardship" report** — the v
 
 ---
 
+## Extended Use Cases
+
+The Sovereign Node is a **universal closed-loop resource management platform**. The same hardware, firmware, and DDS mesh that manages a cattle ranch applies directly to any environment requiring autonomous, verifiable, offline-capable monitoring and control. Each use case has a dedicated integration plan in the `docs/` directory.
+
+| Domain | Pain Point Solved | Key Sensors | Integration Plan |
+|---|---|---|---|
+| **Aquaculture & Water Systems** | Dissolved oxygen crashes causing fish kills | Atlas Scientific EZO-DO, EZO-pH, DS18B20 | [EXT_AQUACULTURE.md](docs/EXT_AQUACULTURE.md) |
+| **Apiary (Beehive) Monitoring** | Undetected swarming and colony collapse | HX711 load cell, INMP441 mic (PSMSL), BME280 | [EXT_APIARY.md](docs/EXT_APIARY.md) |
+| **Precision Irrigation** | Overwatering and nutrient leaching | Capacitive soil moisture array, flow meter, solenoid relay | [EXT_IRRIGATION.md](docs/EXT_IRRIGATION.md) |
+| **Predator Detection & Wildlife** | Livestock predation; labor-intensive monitoring | RCWL-0516 radar, INMP441 mic array, vision AI | [EXT_WILDLIFE.md](docs/EXT_WILDLIFE.md) |
+| **Grain Storage & Post-Harvest** | Invisible hot spots and mold causing spoilage | DS18B20 temperature cable, SCD41 CO2, aeration relay | [EXT_GRAIN.md](docs/EXT_GRAIN.md) |
+| **Controlled Environment Ag (CEA)** | Suboptimal VPD and DLI reducing yields | SCD41 CO2, BME280, VEML7700 light sensor | [EXT_CEA.md](docs/EXT_CEA.md) |
+| **Equine Performance** | Undetected lameness and overtraining | ISM330DHCX IMU (PSMSL), MLX90640 thermal, BLE HR | [EXT_EQUINE.md](docs/EXT_EQUINE.md) |
+| **Water Rights & Watershed** | Compliance reporting and nutrient runoff | Ultrasonic flow meter, EZO-Turbidity, EZO-Nitrate | [EXT_WATERSHED.md](docs/EXT_WATERSHED.md) |
+
+---
+
 ## Farm-to-Orbit
 
 A farm operating in a high-variability, off-grid environment is mathematically identical to a lunar greenhouse. The same engineering constraints apply: extreme latency tolerance, resource scarcity management, zero dependency on external infrastructure, and cryptographically verifiable operational data.
@@ -101,15 +118,21 @@ Every hour a Sovereign Node spends in a field is a stress test that validates it
 sais/
 ├── docs/
 │   ├── ARCHITECTURE.md               # Full system architecture reference
-│   ├── STRATEGIC_VISION.md           # Farm-to-Orbit strategic vision document
 │   ├── HARDWARE_SPEC.md              # Hardware BOM and enclosure spec (UNO Q focus)
 │   ├── SCADA_SECURITY_SPEC.md        # NASA Life-Support Grade security spec
-│   ├── INTELLIGENCE_LAYER.md         # Edge AI, RAG, and On-Device LLM design
+│   ├── SENSOR_PACKAGES.md            # Sensor package definitions (Packages 1–8)
 │   ├── DRONE_SWARM_CAPABILITIES.md   # Ultrasonic echolocation swarm architecture
 │   ├── ADAPTIVE_AUDIO_INTEGRATION.md # PSMSL Adaptive Engine integration plan
 │   ├── NGC_INTEGRATION_PLAN.md       # NGC GeoFlow kernel integration plan
-│   ├── NGC_QUANTUM_INTEGRATION.md    # GF(48) quantum-inspired Adreno GPU integration
-│   └── STRATEGIC_INTEGRATION_ASSESSMENT.md  # Full ecosystem audit (48 repos)
+│   ├── NGC_QUANTUM_INTEGRATION.md    # GF(48) quantum-inspired GPU integration
+│   ├── EXT_AQUACULTURE.md            # Extension: Aquaculture & Water Systems
+│   ├── EXT_APIARY.md                 # Extension: Apiary (Beehive) Monitoring
+│   ├── EXT_IRRIGATION.md             # Extension: Precision Irrigation
+│   ├── EXT_WILDLIFE.md               # Extension: Predator Detection & Wildlife
+│   ├── EXT_GRAIN.md                  # Extension: Grain Storage & Post-Harvest
+│   ├── EXT_CEA.md                    # Extension: Controlled Environment Ag (CEA)
+│   ├── EXT_EQUINE.md                 # Extension: Equine Performance
+│   └── EXT_WATERSHED.md              # Extension: Water Rights & Watershed Monitoring
 ├── firmware/
 │   ├── components/
 │   │   └── adaptive-engine/          # PSMSL core for structural/acoustic analysis
