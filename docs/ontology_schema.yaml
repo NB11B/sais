@@ -1,0 +1,117 @@
+# SAIS Regenerative Agriculture Ontology Schema
+# Version: 1.0
+# Purpose: Define the knowledge graph entities, relationships, and sensor mappings for the SAIS Intelligence Platform.
+
+classes:
+  - name: SoilBiology
+    description: "Living organisms in the soil food web."
+    subclasses:
+      - Bacteria
+      - Fungi
+      - Protozoa
+      - Nematodes
+      - Microarthropods
+      - Earthworms
+    properties:
+      - respiration_rate (mg CO2/kg/day)
+      - biomass_ratio (fungi:bacteria)
+      - active_carbon (ppm)
+
+  - name: SoilChemistry
+    description: "Chemical properties and nutrient availability."
+    properties:
+      - pH
+      - soil_organic_carbon (SOC %)
+      - total_nitrogen (TN %)
+      - cation_exchange_capacity (CEC)
+      - NPK_levels (ppm)
+
+  - name: SoilPhysics
+    description: "Physical structure and environmental conditions."
+    properties:
+      - temperature (C)
+      - volumetric_water_content (VWC %)
+      - bulk_density (g/cm3)
+      - aggregate_stability (%)
+      - infiltration_rate (in/hr)
+
+  - name: PlantHealth
+    description: "Above-ground plant vitality and root system."
+    properties:
+      - brix_level (Degrees Brix)
+      - root_depth (cm)
+      - exudate_production (relative)
+      - leaf_area_index (LAI)
+
+  - name: ManagementPractice
+    description: "Human interventions in the agricultural system."
+    subclasses:
+      - CoverCropping
+      - RotationalGrazing
+      - NoTill
+      - CompostApplication
+      - Irrigation
+
+  - name: SensorNode
+    description: "SAIS hardware deployed to measure properties."
+    subclasses:
+      - Package9_SoilBiology
+      - Package1_SoilBaseline
+      - Package8_VisionAI
+      - ManualInput
+
+relationships:
+  - source: SoilBiology
+    type: DRIVES
+    target: SoilChemistry
+    description: "Microbes mineralize nutrients, making them plant-available."
+
+  - source: SoilBiology
+    type: BUILDS
+    target: SoilPhysics
+    description: "Microbial glues (glomalin) and fungal hyphae build soil aggregates."
+
+  - source: PlantHealth
+    type: FEEDS
+    target: SoilBiology
+    description: "Plants release root exudates (sugars) to feed specific microbes."
+
+  - source: SoilChemistry
+    type: NOURISHES
+    target: PlantHealth
+    description: "Available nutrients support plant growth and immunity."
+
+  - source: ManagementPractice
+    type: MODIFIES
+    target: SoilPhysics
+    description: "Practices like no-till preserve aggregate stability."
+
+  - source: ManagementPractice
+    type: STIMULATES
+    target: SoilBiology
+    description: "Cover crops provide continuous living roots to feed microbes."
+
+  - source: SensorNode
+    type: MEASURES
+    target: [SoilBiology, SoilChemistry, SoilPhysics, PlantHealth]
+
+sensor_mappings:
+  - property: SoilBiology.respiration_rate
+    sensor: Package9_SoilBiology.SCD41
+    frequency: "5-minute flux chamber cycle"
+
+  - property: SoilPhysics.temperature
+    sensor: Package9_SoilBiology.DS18B20
+    frequency: "Continuous"
+
+  - property: SoilPhysics.volumetric_water_content
+    sensor: Package1_SoilBaseline.CapacitiveMoisture
+    frequency: "Continuous"
+
+  - property: PlantHealth.brix_level
+    sensor: ManualInput.Refractometer
+    frequency: "Weekly"
+
+  - property: SoilChemistry.NPK_levels
+    sensor: Package1_SoilBaseline.NPK_Probe
+    frequency: "Daily"
