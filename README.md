@@ -93,6 +93,7 @@ The Sovereign Node is a **universal closed-loop resource management platform**. 
 
 | Domain | Pain Point Solved | Key Sensors | Integration Plan |
 |---|---|---|---|
+| **Regenerative Soil Health** | Invisible soil biology crashes; over-application of inputs | SCD41 CO2 (respiration), DS18B20, Brix | [REGEN_AG_SOIL.md](docs/REGEN_AG_SOIL.md) |
 | **Aquaculture & Water Systems** | Dissolved oxygen crashes causing fish kills | Atlas Scientific EZO-DO, EZO-pH, DS18B20 | [EXT_AQUACULTURE.md](docs/EXT_AQUACULTURE.md) |
 | **Apiary (Beehive) Monitoring** | Undetected swarming and colony collapse | HX711 load cell, INMP441 mic (PSMSL), BME280 | [EXT_APIARY.md](docs/EXT_APIARY.md) |
 | **Precision Irrigation** | Overwatering and nutrient leaching | Capacitive soil moisture array, flow meter, solenoid relay | [EXT_IRRIGATION.md](docs/EXT_IRRIGATION.md) |
@@ -125,6 +126,7 @@ sais/
 │   ├── ADAPTIVE_AUDIO_INTEGRATION.md # PSMSL Adaptive Engine integration plan
 │   ├── NGC_INTEGRATION_PLAN.md       # NGC GeoFlow kernel integration plan
 │   ├── NGC_QUANTUM_INTEGRATION.md    # GF(48) quantum-inspired GPU integration
+│   ├── REGEN_AG_SOIL.md              # Extension: Regenerative Soil Health Integration
 │   ├── EXT_AQUACULTURE.md            # Extension: Aquaculture & Water Systems
 │   ├── EXT_APIARY.md                 # Extension: Apiary (Beehive) Monitoring
 │   ├── EXT_IRRIGATION.md             # Extension: Precision Irrigation

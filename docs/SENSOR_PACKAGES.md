@@ -155,7 +155,28 @@ When an anomaly is detected, the node sends a tiny JSON payload over the DDS mes
 
 ---
 
-## 9. Package 4: The Carbon Verification Array (Phase 3)
+## 9. Package 9: Soil Biology & Respiration Monitor (Phase 2)
+
+**Target:** Regenerative agriculture plots, orchards, and vineyards.
+**Pain Point Solved:** Invisible soil biology crashes; over-application of synthetic inputs.
+**Intelligence Value:** Continuous microbial respiration rate; the foundational metric of regenerative soil health.
+
+This package is designed for continuous, in-field measurement of microbial activity. It bridges the gap between the basic environmental baseline (Package 1) and the full Carbon Verification Array (Package 4).
+
+| Component | Interface | Purpose | Estimated Cost |
+|---|---|---|---|
+| **Sensirion SCD41** | I2C (Qwiic) | Photoacoustic CO₂ sensor (0-5000 ppm) mounted inside a 3D-printed or PVC soil flux chamber. | $20.00 |
+| **DS18B20 Probe** | 1-Wire | Waterproof soil temperature probe (inserted 2 inches deep next to the chamber). | $5.00 |
+| **Capacitive Moisture** | I2C (Qwiic) | Soil moisture sensor to correlate respiration with water availability. | $5.00 |
+| **Micro-Servo (Optional)** | PWM | Automates the opening and closing of the flux chamber vent to allow continuous, unattended measurement cycles. | $10.00 |
+
+**Total hardware cost: ~$40.**
+
+*Deployment Note:* The SCD41 measures the rate at which CO₂ accumulates inside the chamber over a 5-minute window. A high respiration rate indicates active microbial life breaking down organic matter and cycling nutrients. A sudden drop indicates biological stress (e.g., from tillage, chemical application, or severe drought).
+
+---
+
+## 10. Package 4: The Carbon Verification Array (Phase 3)
 **Target:** Regenerative agriculture plots seeking Carbon-Plus bond issuance.
 **Pain Point Solved:** $50,000 manual MRV auditor fees.
 **Intelligence Value:** The cryptographic proof of soil carbon sequestration.
