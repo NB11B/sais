@@ -118,6 +118,7 @@ Every hour a Sovereign Node spends in a field is a stress test that validates it
 ```
 sais/
 ├── docs/
+│   ├── ENGINEERING_GUIDANCE.md       # Core measurement-to-meaning principles and MVP focus
 │   ├── ARCHITECTURE.md               # Full system architecture reference
 │   ├── HARDWARE_SPEC.md              # Hardware BOM and enclosure spec (UNO Q focus)
 │   ├── SCADA_SECURITY_SPEC.md        # NASA Life-Support Grade security spec

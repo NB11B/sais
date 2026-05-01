@@ -1,0 +1,131 @@
+# SAIS Measurement Intelligence Inventory
+# Core mapping of physical and logical metrics to farmer decisions.
+
+measurements:
+  - id: "soil.physics.vwc"
+    layer: "SoilPhysics"
+    measurement_basis: "direct"
+    source_type: "sensor"
+    cost_profile: "low"
+    sensor_options:
+      - "capacitive_probe"
+      - "gypsum_block"
+      - "tensiometer"
+    informs:
+      - "water_availability"
+      - "infiltration_response"
+      - "grazing_timing"
+      - "biological_activity_context"
+    farmer_questions:
+      - "Is there enough water in the root zone?"
+      - "Did rainfall infiltrate or run off?"
+      - "Should livestock be kept off this paddock?"
+    dashboard_cards:
+      - "water_retention"
+      - "grazing_readiness"
+      - "drought_stress"
+    confidence: "high"
+
+  - id: "soil.physics.infiltration_response"
+    layer: "SoilPhysics"
+    measurement_basis: "derived"
+    source_type: "compute"
+    cost_profile: "free"
+    dependencies:
+      - "water.cycle.rainfall"
+      - "soil.physics.vwc"
+    informs:
+      - "runoff_risk"
+      - "compaction_presence"
+    farmer_questions:
+      - "Is water entering or running off?"
+    dashboard_cards:
+      - "runoff_risk"
+      - "infiltration_score"
+    confidence: "medium"
+
+  - id: "water.terrain.elevation"
+    layer: "Hydrology"
+    measurement_basis: "open_data"
+    source_type: "api"
+    cost_profile: "free"
+    sensor_options:
+      - "USGS_3DEP"
+      - "LiDAR"
+    informs:
+      - "water_flow_paths"
+      - "erosion_risk_zones"
+    farmer_questions:
+      - "What is the terrain shape?"
+    dashboard_cards:
+      - "base_terrain_twin"
+    confidence: "high"
+
+  - id: "plant.health.ndvi"
+    layer: "PlantHealth"
+    measurement_basis: "open_data"
+    source_type: "api"
+    cost_profile: "free"
+    sensor_options:
+      - "Sentinel-2"
+      - "Landsat"
+    informs:
+      - "plant_vigor"
+      - "drought_stress"
+      - "biomass_estimate"
+    farmer_questions:
+      - "Is plant vigor rising or falling?"
+    dashboard_cards:
+      - "vigor_map"
+      - "armor_score"
+    confidence: "high"
+
+  - id: "livestock.management.rest_period"
+    layer: "Livestock"
+    measurement_basis: "derived"
+    source_type: "compute"
+    cost_profile: "free"
+    dependencies:
+      - "audit.event.intervention" # paddock moves
+    informs:
+      - "paddock_recovery"
+      - "grazing_readiness"
+    farmer_questions:
+      - "Is this paddock fully recovered?"
+    dashboard_cards:
+      - "grazing_readiness"
+      - "paddock_recovery"
+    confidence: "high"
+
+  - id: "soil.biology.respiration"
+    layer: "SoilBiology"
+    measurement_basis: "proxy"
+    source_type: "sensor"
+    cost_profile: "medium"
+    sensor_options:
+      - "NDIR_chamber"
+    informs:
+      - "microbial_activity"
+      - "carbon_cycling"
+    farmer_questions:
+      - "Is microbial activity increasing or decreasing?"
+    dashboard_cards:
+      - "biological_engine_status"
+    confidence: "medium"
+
+  - id: "atmosphere.air.vpd"
+    layer: "Atmosphere"
+    measurement_basis: "derived"
+    source_type: "compute"
+    cost_profile: "low"
+    dependencies:
+      - "atmosphere.air.temp"
+      - "atmosphere.air.rh"
+    informs:
+      - "transpiration_stress"
+      - "disease_risk"
+    farmer_questions:
+      - "Are my plants experiencing transpiration stress?"
+    dashboard_cards:
+      - "vpd_stress_card"
+    confidence: "high"
