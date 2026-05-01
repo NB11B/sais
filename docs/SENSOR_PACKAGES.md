@@ -74,7 +74,26 @@ This package converts a "dumb" continuous-pulse electric fence into a reactive, 
 
 ---
 
-## 6. Package 4: The Carbon Verification Array (Phase 3)
+## 6. Package 6: The Livestock Water Tank Monitor
+**Target:** Open-range cattle, sheep, and horse operations with remote water tanks, troughs, or stock ponds.
+**Pain Point Solved:** Dry tanks discovered only after livestock have been without water for hours; unnecessary daily driving to check tank levels.
+**Intelligence Value:** Water consumption rate modeling, livestock herd activity inference, pump cycle health.
+
+This is one of the highest-value, lowest-cost packages in the SAIS stack. A dry water tank on a hot day is a livestock welfare emergency and a direct financial loss. Yet checking tank levels is one of the most time-consuming "windshield time" tasks on any ranch. A single ultrasonic sensor mounted to the top of a tank lid solves this completely.
+
+| Sensor / Actuator | Interface | Purpose | Estimated Cost |
+|---|---|---|---|
+| **SparkFun Qwiic Ultrasonic Distance Sensor (HC-SR04 / SparkFun variant)** | I2C (Qwiic) | Measures the air gap between the sensor and the water surface. Tank level is derived from the known tank geometry. | $10.00 |
+| **BME280 Environmental Sensor** | I2C (Qwiic) | Temperature and humidity correction for ultrasonic speed-of-sound compensation (ensures accuracy across seasons). | $15.00 |
+| **SparkFun Qwiic Single Relay** *(optional)* | I2C (Qwiic) | Triggers a float-valve solenoid or pump to auto-refill the tank when level drops below a threshold. | $10.00 |
+
+*Deployment Note:* The sensor mounts inside a sealed PVC cap on the top of the tank — completely protected from weather and livestock. The UNO Q calculates the fill percentage from the measured air gap and the known tank diameter. Alerts are sent to the C2 Dashboard at configurable thresholds (e.g., 30% and 10% remaining). With the optional relay, the system can trigger an automatic refill pump, turning a passive monitor into a fully autonomous water management system.
+
+**The Dual-Sensor Insight:** The same RCWL-0516 microwave radar from Package 5 can be co-deployed on the tank node to detect livestock presence at the trough. By correlating radar presence events with water level drop rate, the Intelligence Layer can estimate herd size and drinking frequency — a proxy for herd health and heat stress that requires no additional hardware.
+
+---
+
+## 7. Package 4: The Carbon Verification Array (Phase 3)
 **Target:** Regenerative agriculture plots seeking Carbon-Plus bond issuance.
 **Pain Point Solved:** $50,000 manual MRV auditor fees.
 **Intelligence Value:** The cryptographic proof of soil carbon sequestration.
