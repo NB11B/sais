@@ -1,0 +1,98 @@
+# SAIS Sensor Deployment Map Schema
+# Maps specific hardware packages to ontological layers and farmer activities
+
+classes:
+  - name: SensorNode
+    description: "Physical hardware deployed to measure specific ecosystem metrics."
+    properties:
+      - sensor_type (enum: NDIR, ISE, Capacitance, Thermistor, Multispectral, Acoustic, GPS, Optical)
+      - deployment_location (enum: In-situ, Mobile, Edge)
+      - data_frequency (enum: Continuous, Hourly, Daily, Weekly, Event-based)
+      - package_id (enum: Package1, Package6, Package8, Package9, CoreGateway)
+
+# Mapping Sensors to Ontological Layers
+mappings:
+  - layer: SoilBiology
+    target_metric: "Microbial Respiration"
+    sensor_type: "NDIR CO2 Sensor"
+    deployment_location: "In-situ (surface chamber)"
+    data_frequency: "Hourly"
+    package_id: "Package9"
+
+  - layer: SoilChemistry
+    target_metric: "NPK Availability"
+    sensor_type: "Ion-Selective Electrode (ISE)"
+    deployment_location: "In-situ (root zone, 15cm)"
+    data_frequency: "Daily"
+    package_id: "Package1"
+
+  - layer: SoilPhysics
+    target_metric: "Moisture & Temp"
+    sensor_type: "Capacitance Probe / Thermistor"
+    deployment_location: "In-situ (profile array: 10, 30, 60cm)"
+    data_frequency: "Hourly"
+    package_id: "Package1"
+
+  - layer: PlantHealth
+    target_metric: "Canopy Vigor / Stress"
+    sensor_type: "Multispectral Camera (NDVI)"
+    deployment_location: "Mobile (Drone/Tractor mount)"
+    data_frequency: "Weekly"
+    package_id: "Package8"
+
+  - layer: WaterCycle
+    target_metric: "Infiltration Rate"
+    sensor_type: "Moisture Array (Delta over time)"
+    deployment_location: "In-situ (profile array)"
+    data_frequency: "Event-based (Rain)"
+    package_id: "Package1"
+
+  - layer: Atmosphere
+    target_metric: "Enteric Methane Proxy"
+    sensor_type: "Acoustic Microphone"
+    deployment_location: "Mobile (Livestock collar/ear tag)"
+    data_frequency: "Continuous"
+    package_id: "Package6"
+
+  - layer: Livestock
+    target_metric: "Grazing Density & Rest"
+    sensor_type: "GPS / Accelerometer"
+    deployment_location: "Mobile (Livestock collar/ear tag)"
+    data_frequency: "15-minute"
+    package_id: "Package6"
+
+  - layer: FarmEcosystem
+    target_metric: "Biodiversity Index"
+    sensor_type: "Optical Camera + Edge AI"
+    deployment_location: "In-situ (fence post / tree mount)"
+    data_frequency: "Daily"
+    package_id: "Package8"
+
+  - layer: MarketFinancial
+    target_metric: "MRV Audit Trail"
+    sensor_type: "Cryptographic Hash Generator"
+    deployment_location: "Edge Gateway (local processing)"
+    data_frequency: "Per transaction"
+    package_id: "CoreGateway"
+
+# Hardware Package Definitions
+packages:
+  - id: Package1
+    name: "Soil Baseline"
+    components: ["NPK ISE probe", "multi-depth moisture/temperature array"]
+    deployment_strategy: "1 node per management zone or soil type."
+
+  - id: Package6
+    name: "Livestock Integration"
+    components: ["GPS tracker", "accelerometer", "acoustic microphone"]
+    deployment_strategy: "1 tag per 10-20 head of cattle (representative sampling)."
+
+  - id: Package8
+    name: "Vision & Biodiversity"
+    components: ["High-resolution optical camera", "multispectral sensor"]
+    deployment_strategy: "Fixed mounts at field edges; mobile mounts on existing farm equipment."
+
+  - id: Package9
+    name: "Biological Flux"
+    components: ["NDIR CO2 sensor in an automated flux chamber"]
+    deployment_strategy: "1 node per key management zone, co-located with Package 1."
