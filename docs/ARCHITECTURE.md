@@ -26,7 +26,19 @@ All architectural decisions are subordinate to four inviolable constraints:
 
 ---
 
-## Node Architecture
+## Phased Build Order
+
+SAIS is being developed and deployed in three distinct phases to ensure hardware reliability and data integrity before introducing complex intelligence layers.
+
+| Phase | Focus | Status | Description |
+|---|---|---|---|
+| **Phase 1** | Edge Devices & Nodes | **Active** | Physical hardware assembly, RTOS firmware, sensor integration, and basic DDS mesh networking. |
+| **Phase 2** | Intelligence Platform | **Pending** | SCADA/Compute layer, C2 Dashboard, OADA API, and the Cryptographic Auditor (Proof of Stewardship). |
+| **Phase 3** | AI & Machine Learning | **Deferred** | On-device LLM, RAG knowledge graph, and predictive TinyML inference. |
+
+---
+
+## Node Architecture (Phase 1 & 2)
 
 ### Layer 1: Controller Layer (Real-Time)
 
@@ -68,15 +80,15 @@ All architectural decisions are subordinate to four inviolable constraints:
 | `sais-dashboard` | C2 Dashboard — local web interface for operator monitoring and control |
 | `sais-ota` | OTA update agent — manages signed firmware and container image updates |
 | `sais-ngc-engine` | Nested Geometric Computation (NGC) engine — runs the PSMSL relational processing engine for macro-level phase transition detection |
-| `sais-intelligence` | On-device AI decision engine (TinyML + RAG + LLM) for automated control and natural-language alerts |
+| `sais-intelligence` | *(Phase 3 Deferred)* On-device AI decision engine (TinyML + RAG + LLM) for automated control and natural-language alerts |
 
-#### The Intelligence Layer
-The `sais-intelligence` container is the on-device decision engine that ingests all sensor streams (NGC, Adaptive Engine, SCADA telemetry). It consists of:
-- **Edge Inference Engine (TinyML):** Runs lightweight anomaly detection and predictive maintenance models (e.g., TensorFlow Lite for Microcontrollers).
-- **Local Knowledge Graph (RAG):** A vector database containing agronomic best practices, historical logs, and equipment manuals.
-- **On-Device LLM (Advisory Agent):** A highly quantized Large Language Model that synthesizes anomalies and RAG context into natural-language alerts for the farmer.
+#### The Intelligence Layer (Phase 3 Deferred)
+*Note: The AI/ML components of the Intelligence Layer are deferred to Phase 3. The current focus is on establishing the deterministic hardware and data infrastructure required to feed these models.*
 
-This layer automates routine control decisions (e.g., throttling a failing pump) and surfaces actionable intelligence to the C2 Dashboard, operating entirely at the edge without cloud dependency.
+When implemented, the `sais-intelligence` container will act as the on-device decision engine, consisting of:
+- **Edge Inference Engine (TinyML):** Lightweight anomaly detection and predictive maintenance models.
+- **Local Knowledge Graph (RAG):** A vector database containing agronomic best practices and historical logs.
+- **On-Device LLM (Advisory Agent):** A quantized LLM that synthesizes anomalies into natural-language alerts.
 
 **Secure Enclave:** ARM TrustZone on the i.MX 8M is used to store the node's cryptographic private key. The key is never exposed to the application layer. All signing operations are performed inside the secure enclave.
 

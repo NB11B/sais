@@ -28,6 +28,12 @@ SAIS is the engineering alternative. It is not a protest. It is a replacement.
 
 ## The Solution: The Sovereign Node
 
+SAIS is being developed and deployed in three distinct phases to ensure hardware reliability and data integrity before introducing complex intelligence layers:
+
+1. **Phase 1: Edge Devices & Nodes (Active)** — Physical hardware assembly, RTOS firmware, sensor integration, and basic DDS mesh networking.
+2. **Phase 2: Intelligence Platform (Pending)** — SCADA/Compute layer, C2 Dashboard, OADA API, and the Cryptographic Auditor (Proof of Stewardship).
+3. **Phase 3: AI & Machine Learning (Deferred)** — On-device LLM, RAG knowledge graph, and predictive TinyML inference.
+
 A **Sovereign Node** is a self-contained, solar-powered edge controller that manages a farm's complete digital nervous system without ever needing to contact a central server.
 
 ### Hardware Architecture
@@ -44,9 +50,11 @@ The node uses a **Dual-Core Edge Controller** design, optimized for the [Arduino
 | **Storage** | Onboard eMMC | No SD cards; rated for continuous write cycles |
 | **Power** | Solar + LiFePO4 battery | Off-grid operation indefinitely |
 
-### The Intelligence Layer
+### The Intelligence Layer (Phase 3 Deferred)
 
-SAIS solves the cognitive overload of traditional SCADA systems by acting as an **active farm intelligence agent**. The `sais-intelligence` container runs entirely at the edge:
+*Note: The AI/ML components of the Intelligence Layer are deferred to Phase 3. The current focus is on establishing the deterministic hardware and data infrastructure required to feed these models.*
+
+When implemented, SAIS will solve the cognitive overload of traditional SCADA systems by acting as an **active farm intelligence agent**. The `sais-intelligence` container will run entirely at the edge:
 - **Edge Inference (TinyML):** Runs anomaly detection and predictive maintenance models on raw telemetry.
 - **Local Knowledge Graph (RAG):** A vector database containing agronomic best practices, historical logs, and equipment manuals.
 - **On-Device LLM:** Synthesizes anomalies and RAG context into natural-language alerts for the farmer, explaining every automated decision it makes.
