@@ -93,7 +93,26 @@ This is one of the highest-value, lowest-cost packages in the SAIS stack. A dry 
 
 ---
 
-## 7. Package 4: The Carbon Verification Array (Phase 3)
+## 7. Package 7: Individual Livestock Identification & Tracking
+**Target:** High-value livestock, dairy herds, breeding stock, and rotational grazing operations.
+**Pain Point Solved:** Inability to track individual animal health, location, and behavior without manual visual inspection; lost animals.
+**Intelligence Value:** Individualized health baselines, disease transmission tracing, grazing pattern optimization.
+
+While radar and ultrasonic sensors can estimate herd-level metrics, tracking individual animals requires a tag. Traditional GPS collars are expensive ($100+) and require frequent battery changes. The SAIS approach uses low-power Bluetooth Low Energy (BLE) ear tags communicating with stationary SAIS nodes acting as gateways.
+
+| Sensor / Actuator | Interface | Purpose | Estimated Cost |
+|---|---|---|---|
+| **nRF52-based BLE Ear Tag** | BLE 5.0 (Wireless) | Broadcasts a unique ID, temperature, and accelerometer data (step count/activity). Battery lasts 2–3 years. | $12.00 (per tag) |
+| **ESP32-S3 / UNO Q BLE Radio** | Internal | The existing SAIS node hardware acts as the BLE gateway, receiving tag broadcasts up to 100 meters away. | $0.00 (built-in) |
+| **Directional BLE Antenna** *(optional)* | U.FL / SMA | Extends the reception range of the SAIS node to 300+ meters in open pasture. | $8.00 |
+
+*Deployment Note:* This package requires no new sensors to be wired into the SAIS node — it simply activates the existing onboard Bluetooth radio to listen for BLE beacons. When a tagged animal walks within range of any SAIS node (e.g., at a water tank or a gate), the node logs the animal's ID, temperature, and activity level, then forwards it over the DDS mesh to the C2 Dashboard.
+
+**The "Virtual Fence" Insight:** By deploying SAIS nodes at key choke points (gates, water sources, shade structures), the farmer creates a passive tracking grid. If an animal's tag is not seen by any node for 24 hours, or if its temperature spikes, the Intelligence Layer flags that specific animal for inspection. The accelerometer data in the tag also allows the system to detect estrus (increased mounting activity) or illness (lethargy) automatically.
+
+---
+
+## 8. Package 4: The Carbon Verification Array (Phase 3)
 **Target:** Regenerative agriculture plots seeking Carbon-Plus bond issuance.
 **Pain Point Solved:** $50,000 manual MRV auditor fees.
 **Intelligence Value:** The cryptographic proof of soil carbon sequestration.
