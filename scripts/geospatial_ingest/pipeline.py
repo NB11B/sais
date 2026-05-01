@@ -3,6 +3,7 @@ import argparse
 from terrain import calculate_slope_and_aspect, process_hydrology
 from soils import rasterize_soils
 from intelligence import compute_runoff_risk
+from manifest import generate_manifest
 
 def run_pipeline(input_dir, output_dir):
     """
@@ -34,13 +35,17 @@ def run_pipeline(input_dir, output_dir):
         soil_raster_path = os.path.join(output_dir, 'soils_hydrologic_group.tif')
         rasterize_soils(soils_path, dem_path, soil_raster_path)
     
-        print("4. Generating Derived Intelligence (Runoff Risk)...")
+        print("4. Generating Derived Intelligence (Runoff Risk v2)...")
         risk_path = os.path.join(output_dir, 'runoff_risk.tif')
-        compute_runoff_risk(slope_path, soil_raster_path, risk_path)
+        compute_runoff_risk(slope_path, soil_raster_path, flow_acc_path, risk_path)
     else:
         print("Skipping Soils and Runoff Risk (soils.geojson not found).")
         
+    print("5. Generating Manifest...")
+    manifest_path = generate_manifest(input_dir, output_dir)
+        
     print(f"Pipeline Complete! Derived intelligence maps saved to {output_dir}/")
+    print(f"Manifest created at: {manifest_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SAIS Geospatial Ingest Pipeline")

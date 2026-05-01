@@ -1,7 +1,6 @@
 import numpy as np
 import rasterio
 from pysheds.grid import Grid
-import os
 import warnings
 
 # Suppress verbose rasterio/pysheds warnings for MVP
@@ -17,14 +16,32 @@ def calculate_slope_and_aspect(dem_path, out_slope_path, out_aspect_path):
         cell_size_x = abs(transform[0])
         cell_size_y = abs(transform[4])
         profile = src.profile
+        nodata = src.nodata
+
+        if src.crs and src.crs.is_geographic:
+            raise ValueError(f"DEM CRS {src.crs} is geographic (e.g. degrees). Please reproject to a projected CRS (meters/feet) before running this pipeline to ensure accurate slope calculation.")
+
+    # Mask nodata
+    if nodata is not None:
+        dem_masked = np.ma.masked_equal(dem, nodata)
+    else:
+        dem_masked = dem
 
     # Simple 2D gradient for slope/aspect
-    y, x = np.gradient(dem, cell_size_y, cell_size_x)
+    y, x = np.gradient(dem_masked, cell_size_y, cell_size_x)
     
     slope = np.arctan(np.sqrt(x*x + y*y)) * 180 / np.pi
     
     aspect = np.arctan2(-x, y) * 180 / np.pi
     aspect = np.where(aspect < 0, aspect + 360, aspect)
+
+    # Re-apply nodata mask if it exists
+    if np.ma.is_masked(slope):
+        slope = slope.filled(nodata if nodata is not None else -9999)
+        aspect = aspect.filled(nodata if nodata is not None else -9999)
+        if nodata is None:
+            profile.update(nodata=-9999)
+            nodata = -9999
 
     # Write Slope
     profile.update(dtype=rasterio.float32, count=1, compress='deflate')
