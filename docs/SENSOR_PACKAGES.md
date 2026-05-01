@@ -95,20 +95,39 @@ This is one of the highest-value, lowest-cost packages in the SAIS stack. A dry 
 
 ## 7. Package 7: Individual Livestock Identification & Tracking
 **Target:** High-value livestock, dairy herds, breeding stock, and rotational grazing operations.
-**Pain Point Solved:** Inability to track individual animal health, location, and behavior without manual visual inspection; lost animals.
-**Intelligence Value:** Individualized health baselines, disease transmission tracing, grazing pattern optimization.
+**Pain Point Solved:** Inability to track individual animal health, location, and behavior without manual visual inspection; lost animals across large open-range properties.
+**Intelligence Value:** Individualized health baselines, disease transmission tracing, grazing pattern optimization, real-time herd location.
 
-While radar and ultrasonic sensors can estimate herd-level metrics, tracking individual animals requires a tag. Traditional GPS collars are expensive ($100+) and require frequent battery changes. The SAIS approach uses low-power Bluetooth Low Energy (BLE) ear tags communicating with stationary SAIS nodes acting as gateways.
+While radar and ultrasonic sensors can estimate herd-level metrics, tracking individual animals requires a tag. Traditional GPS collars cost $80–$150 per animal with monthly battery changes. The SAIS approach uses two complementary RF technologies — **BLE for short-range proximity detection** at fixed infrastructure points, and **LoRa for long-range direct telemetry** across the full property — giving the farmer complete individual animal visibility at a fraction of the cost.
+
+### Sub-Package 7A: BLE Proximity Detection (Short Range, ~100–300 m)
 
 | Sensor / Actuator | Interface | Purpose | Estimated Cost |
 |---|---|---|---|
 | **nRF52-based BLE Ear Tag** | BLE 5.0 (Wireless) | Broadcasts a unique ID, temperature, and accelerometer data (step count/activity). Battery lasts 2–3 years. | $12.00 (per tag) |
-| **ESP32-S3 / UNO Q BLE Radio** | Internal | The existing SAIS node hardware acts as the BLE gateway, receiving tag broadcasts up to 100 meters away. | $0.00 (built-in) |
-| **Directional BLE Antenna** *(optional)* | U.FL / SMA | Extends the reception range of the SAIS node to 300+ meters in open pasture. | $8.00 |
+| **ESP32-S3 / UNO Q BLE Radio** | Internal | The existing SAIS node hardware acts as the BLE gateway — no additional hardware required. | $0.00 (built-in) |
+| **Directional BLE Antenna** *(optional)* | U.FL / SMA | Extends node reception range to 300+ meters in open pasture. | $8.00 |
 
-*Deployment Note:* This package requires no new sensors to be wired into the SAIS node — it simply activates the existing onboard Bluetooth radio to listen for BLE beacons. When a tagged animal walks within range of any SAIS node (e.g., at a water tank or a gate), the node logs the animal's ID, temperature, and activity level, then forwards it over the DDS mesh to the C2 Dashboard.
+### Sub-Package 7B: LoRa Long-Range Telemetry (2–15 km)
 
-**The "Virtual Fence" Insight:** By deploying SAIS nodes at key choke points (gates, water sources, shade structures), the farmer creates a passive tracking grid. If an animal's tag is not seen by any node for 24 hours, or if its temperature spikes, the Intelligence Layer flags that specific animal for inspection. The accelerometer data in the tag also allows the system to detect estrus (increased mounting activity) or illness (lethargy) automatically.
+LoRa (Long Range) radio operates in the 915 MHz (US) or 868 MHz (EU) ISM band and achieves **2–15 km range** in open terrain with a coin-cell battery lasting 1–2 years. A LoRa-equipped ear tag transmits directly to any SAIS node in range — no proximity to a fixed choke point required. This is the architecture for open-range cattle on thousands of acres.
+
+| Sensor / Actuator | Interface | Purpose | Estimated Cost |
+|---|---|---|---|
+| **nRF52 + SX1276 LoRa Ear Tag** | LoRa 915 MHz (Wireless) | Transmits unique ID, temperature, and activity data directly to the nearest SAIS node up to 15 km away. | $18.00 (per tag) |
+| **SX1278 Ra-01 LoRa Module (on SAIS node)** | SPI | Receives LoRa tag broadcasts. Already specified in the SAIS hardware stack — no additional node hardware required. | $0.00 (built-in) |
+
+*Deployment Note:* The LoRa tag transmits a short packet (tag ID + temperature + activity + battery level) every 5–15 minutes in a deep-sleep duty cycle, achieving 1–2 years of battery life from a CR2477 coin cell. The SAIS node receives the packet, timestamps it, and forwards it over the DDS mesh. The Intelligence Layer triangulates approximate animal location from the RSSI (signal strength) of multiple receiving nodes — no GPS required.
+
+**The Range Comparison:**
+
+| Technology | Range | Battery Life | Cost per Tag | Best For |
+|---|---|---|---|---|
+| GPS Collar | Global | 1–3 months | $80–$150 | High-value individual animals |
+| BLE Ear Tag | 100–300 m | 2–3 years | $12 | Fixed infrastructure choke points |
+| **LoRa Ear Tag** | **2–15 km** | **1–2 years** | **$18** | **Open-range herds on large properties** |
+
+**The "Virtual Fence" Insight:** By deploying SAIS nodes at key choke points (gates, water sources, shade structures), the BLE layer creates a passive tracking grid for close-range events. The LoRa layer fills in the gaps across the full property. If an animal's tag is not heard by any node for 24 hours, or if its temperature spikes above threshold, the Intelligence Layer flags that specific animal for inspection — regardless of where on the property it is.
 
 ---
 
