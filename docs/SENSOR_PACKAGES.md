@@ -57,7 +57,24 @@ This is the foundational package for any SAIS deployment. It establishes the gro
 
 ---
 
-## 5. Package 4: The Carbon Verification Array (Phase 3)
+## 5. Package 5: The Smart Perimeter & Fence Controller
+**Target:** Open-range grazing, property boundaries, predator exclusion zones.
+**Pain Point Solved:** Wasted electricity on continuous fence energizing, undetected fence breaches, battery drain on solar setups.
+**Intelligence Value:** Perimeter breach mapping, wildlife/predator movement patterns, livestock grazing boundary pressure.
+
+This package converts a "dumb" continuous-pulse electric fence into a reactive, energy-efficient perimeter. It only energizes the fence when a physical presence is detected, saving massive amounts of power on solar-backed systems and extending battery life exponentially.
+
+| Sensor / Actuator | Interface | Purpose | Estimated Cost |
+|---|---|---|---|
+| **RCWL-0516 Microwave Radar Sensor** | Digital I/O | Doppler radar presence detection. Works through plastic enclosures and ignores temperature changes (unlike PIR), making it highly reliable outdoors. | $2.00 |
+| **SparkFun Qwiic Single Relay** | I2C (Qwiic) | Switches the 12V power supply to the fence energizer on/off based on radar triggers. | $10.00 |
+| **Voltage Divider / ADC** | Analog | Monitors the high-voltage pulse return to confirm the fence is actually shocking (detects grounded/broken wires). | $3.00 |
+
+*Deployment Note:* The microwave radar detects motion up to 7 meters away. When triggered, the UNO Q commands the Qwiic Relay to activate the fence energizer for a set duration (e.g., 60 seconds). If the voltage return sensor detects a drop (indicating a grounded wire or a breach), it immediately sends an alert to the C2 Dashboard.
+
+---
+
+## 6. Package 4: The Carbon Verification Array (Phase 3)
 **Target:** Regenerative agriculture plots seeking Carbon-Plus bond issuance.
 **Pain Point Solved:** $50,000 manual MRV auditor fees.
 **Intelligence Value:** The cryptographic proof of soil carbon sequestration.
