@@ -36,7 +36,10 @@ def calculate_slope_and_aspect(dem_path, out_slope_path, out_aspect_path):
     aspect = np.where(aspect < 0, aspect + 360, aspect)
 
     # Re-apply nodata mask if it exists
-    if np.ma.is_masked(slope):
+    if np.ma.is_masked(dem_masked):
+        slope = np.ma.masked_array(slope, mask=dem_masked.mask)
+        aspect = np.ma.masked_array(aspect, mask=dem_masked.mask)
+        
         slope = slope.filled(nodata if nodata is not None else -9999)
         aspect = aspect.filled(nodata if nodata is not None else -9999)
         if nodata is None:

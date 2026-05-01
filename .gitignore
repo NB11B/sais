@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+output/
+*.db
+*.sqlite
+scripts/geospatial_ingest/tests/test_output/
+software/farm_twin/tests/test_output/
+tests/e2e/test_output/

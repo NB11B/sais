@@ -74,8 +74,10 @@ def ingest_sensor_observation(graph: FarmGraph, obs_path: str):
             layer=data["layer"]
         )
         graph.add_node(measurement)
-        graph.add_edge(node_id, "MEASURES", meas_id)
         graph.add_edge(meas_id, "INFORMS", f"ontology:{data['layer']}")
+        
+    # Link sensor to measurement
+    graph.add_edge(node_id, "MEASURES", meas_id)
         
     # 3. Add Observation to the graph and the timeseries table
     obs = Observation(

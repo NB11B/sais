@@ -45,7 +45,7 @@ def rasterize_soils(soils_geojson_path, template_raster_path, out_soil_raster_pa
         dtype=rasterio.uint8
     )
 
-    profile.update(dtype=rasterio.uint8, count=1, compress='deflate')
+    profile.update(dtype=rasterio.uint8, count=1, compress='deflate', nodata=0)
     
     with rasterio.open(out_soil_raster_path, 'w', **profile) as dst:
         dst.write(rasterized, 1)

@@ -69,7 +69,7 @@ def test_water_retention_card_generates_from_risk_and_moisture(graph, example_pa
     
     assert card["card_type"] == "WaterRetentionCard"
     assert card["status"] == "watch"
-    assert "runoff_risk layer exists" in card["evidence"]
+    assert "runoff_risk layer available for farm" in card["evidence"]
     assert "soil moisture at 30cm is 0.23" in card["evidence"]
 
 def test_missing_geospatial_layer_degrades_gracefully(graph, example_paths):
@@ -77,8 +77,8 @@ def test_missing_geospatial_layer_degrades_gracefully(graph, example_paths):
     ingest_farm_profile(graph, example_paths["profile"])
     ingest_sensor_observation(graph, example_paths["observation"])
     
-    # The card should generate, but status should be 'ok' because we don't have enough risk evidence
+    # The card should generate, but status should be 'ok_with_warning' because moisture is low but no risk context
     card = generate_water_retention_card(graph, "local", "field-a", "zone-a1")
     
-    assert card["status"] == "ok"
-    assert "runoff_risk layer exists" not in card["evidence"]
+    assert card["status"] == "ok_with_warning"
+    assert "runoff_risk layer available for farm" not in card["evidence"]
