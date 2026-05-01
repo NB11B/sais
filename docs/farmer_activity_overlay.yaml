@@ -1,0 +1,93 @@
+# SAIS Farmer Activity Overlay Schema
+# Maps human actions to the core ontological entities
+
+classes:
+  - name: FarmerActivity
+    description: "The human-machine interface layer mapping observations, decisions, and interventions."
+    properties:
+      - observation_type (enum: Visual, Tactile, Olfactory, SAIS_Augmented)
+      - decision_horizon (enum: Tactical, Strategic)
+      - intervention_category (enum: Biological, Mechanical, Chemical)
+
+# Mapping Activities to Ontological Layers
+mappings:
+  - layer: SoilBiology
+    observation: "Earthworm presence, residue breakdown rate, soil smell."
+    decision: "Is the biological engine active enough to cycle nutrients?"
+    intervention: "Apply compost extract, adjust grazing impact."
+    sais_augmentation: "Package 9 (CO2 flux) indicates real-time microbial respiration."
+
+  - layer: SoilChemistry
+    observation: "Plant deficiency symptoms, soil test results."
+    decision: "Are nutrients available in the right forms?"
+    intervention: "Apply targeted foliar sprays, adjust cover crop mix to fix N or scavenge P."
+    sais_augmentation: "Package 1 (NPK probe) tracks nutrient availability trends."
+
+  - layer: SoilPhysics
+    observation: "Compaction layers (penetrometer), aggregate stability (slake test)."
+    decision: "Is the soil structure limiting root growth or water infiltration?"
+    intervention: "Deep rip (rarely), plant deep-rooting cover crops (radish)."
+    sais_augmentation: "Package 1 (Moisture/Temp) shows compaction effects on water movement."
+
+  - layer: PlantHealth
+    observation: "Leaf color, pest pressure, Brix levels."
+    decision: "Are plants photosynthesizing optimally and resisting pests?"
+    intervention: "Apply biostimulants, alter grazing timing."
+    sais_augmentation: "Manual Brix input + Vision AI for pest/disease detection."
+
+  - layer: WaterCycle
+    observation: "Ponding after rain, runoff clarity, drought stress in plants."
+    decision: "Is the soil capturing and holding effective rainfall?"
+    intervention: "Increase soil armor (residue), implement keyline design."
+    sais_augmentation: "Moisture array tracks infiltration rates and holding capacity."
+
+  - layer: Atmosphere
+    observation: "(Difficult to observe manually)"
+    decision: "Is the farm sequestering carbon and minimizing GHG emissions?"
+    intervention: "Shift to no-till, optimize livestock feed efficiency."
+    sais_augmentation: "CO2 flux and acoustic proxies for enteric methane."
+
+  - layer: Livestock
+    observation: "Body condition score, manure consistency, grazing behavior."
+    decision: "When should the herd be moved to optimize forage and soil impact?"
+    intervention: "Move temporary fencing (adaptive multi-paddock grazing)."
+    sais_augmentation: "GPS tags track density; acoustic tags monitor rumination."
+
+  - layer: FarmEcosystem
+    observation: "Presence of beneficial insects, bird populations, wildlife tracks."
+    decision: "Is there sufficient biodiversity to provide ecosystem services (e.g., pest control)?"
+    intervention: "Plant pollinator strips, preserve habitat corridors."
+    sais_augmentation: "Vision AI identifies and counts species."
+
+  - layer: MarketFinancial
+    observation: "Input costs, yield estimates, market prices for ecosystem services."
+    decision: "Which practices yield the best ROI and generate verifiable credits?"
+    intervention: "Enroll in carbon programs, reduce synthetic fertilizer purchases."
+    sais_augmentation: "SAIS audit log provides immutable MRV data for monetization."
+
+# Causal Links from Human Action to Ecosystem State
+relationships:
+  - source: FarmerActivity.Intervention
+    type: MODIFIES
+    target: SoilBiology
+    description: "Applying compost extract directly inoculates the soil microbiome."
+
+  - source: FarmerActivity.Intervention
+    type: ALTERS
+    target: SoilPhysics
+    description: "Tillage destroys aggregate stability; cover cropping builds it."
+
+  - source: FarmerActivity.Decision
+    type: TRIGGERS
+    target: Livestock
+    description: "The decision to move the herd dictates grazing pressure and rest periods."
+
+  - source: FarmerActivity.Observation
+    type: INFORMS
+    target: FarmerActivity.Decision
+    description: "Visual assessment of pasture recovery dictates the next grazing move."
+
+  - source: SAIS_Augmentation
+    type: ENHANCES
+    target: FarmerActivity.Observation
+    description: "Continuous sensor data provides quantitative backing to qualitative field observations."
