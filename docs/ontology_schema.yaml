@@ -115,3 +115,96 @@ sensor_mappings:
   - property: SoilChemistry.NPK_levels
     sensor: Package1_SoilBaseline.NPK_Probe
     frequency: "Daily"
+
+  - name: WaterCycle
+    description: "Hydrological movement through the farm ecosystem."
+    properties:
+      - infiltration_rate (in/hr)
+      - evapotranspiration_rate (mm/day)
+      - groundwater_recharge (volume)
+
+  - name: Atmosphere
+    description: "Greenhouse gas exchange and climate impact."
+    properties:
+      - net_carbon_flux (kg CO2e/ha/yr)
+      - methane_emissions (kg CH4/head/yr)
+      - nitrous_oxide_flux (kg N2O/ha/yr)
+
+  - name: Livestock
+    description: "Animals integrated into the farming system."
+    properties:
+      - stocking_density (AU/ha)
+      - rest_period (days)
+      - forage_utilization (%)
+
+  - name: FarmEcosystem
+    description: "Broader biodiversity and ecological health."
+    properties:
+      - species_richness (index)
+      - predator_prey_ratio
+      - habitat_connectivity (%)
+
+  - name: MarketFinancial
+    description: "Economic valuation of agricultural and ecological outputs."
+    properties:
+      - verified_carbon_units (VCU)
+      - profit_per_acre ($)
+      - input_cost_reduction (%)
+
+# Expanded Relationships
+  - source: SoilPhysics
+    type: REGULATES
+    target: WaterCycle
+    description: "Aggregate stability determines infiltration vs runoff."
+
+  - source: PlantHealth
+    type: DRIVES
+    target: WaterCycle
+    description: "Canopy cover and root depth drive transpiration."
+
+  - source: SoilBiology
+    type: EMITS
+    target: Atmosphere
+    description: "Microbial respiration releases CO2 and N2O."
+
+  - source: Livestock
+    type: INOCULATES
+    target: SoilBiology
+    description: "Rumen microbes and manure stimulate soil life."
+
+  - source: Livestock
+    type: PRUNES
+    target: PlantHealth
+    description: "Adaptive grazing stimulates root shedding and regrowth."
+
+  - source: FarmEcosystem
+    type: PROTECTS
+    target: PlantHealth
+    description: "Predatory insects and birds control pest populations."
+
+  - source: Atmosphere
+    type: GENERATES
+    target: MarketFinancial
+    description: "Sequestered carbon translates to verifiable credits."
+
+  - source: SensorNode
+    type: VERIFIES
+    target: MarketFinancial
+    description: "Immutable sensor data provides MRV for ecosystem markets."
+
+# Expanded Sensor Mappings
+  - property: WaterCycle.infiltration_rate
+    sensor: Package1_SoilBaseline.MoistureArray
+    frequency: "Event-based (Rainfall)"
+
+  - property: Atmosphere.methane_emissions
+    sensor: Package6_LivestockTags.AcousticSensor
+    frequency: "Continuous (Proxy via rumination audio)"
+
+  - property: Livestock.stocking_density
+    sensor: Package6_LivestockTags.GPS
+    frequency: "Hourly"
+
+  - property: FarmEcosystem.predator_prey_ratio
+    sensor: Package8_VisionAI.Camera
+    frequency: "Daily"
