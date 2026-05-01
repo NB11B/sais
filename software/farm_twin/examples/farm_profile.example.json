@@ -1,0 +1,22 @@
+{
+  "farm_id": "local",
+  "name": "Demo Farm",
+  "fields": [
+    {
+      "id": "field-a",
+      "name": "Field A",
+      "zones": [
+        {
+          "id": "zone-a1",
+          "name": "North Slope"
+        }
+      ],
+      "paddocks": [
+        {
+          "id": "paddock-1",
+          "name": "Paddock 1"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "farm_twin"
+version = "0.1.0"
+description = "SAIS Farm Digital Twin Core Graph"
+authors = [{name = "SAIS Contributors"}]
+dependencies = [
+    "pytest>=7.0.0"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

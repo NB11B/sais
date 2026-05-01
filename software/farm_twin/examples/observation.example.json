@@ -1,0 +1,19 @@
+{
+  "schema": "sais.observation.v1",
+  "node_id": "node-soil-001",
+  "farm_id": "local",
+  "field_id": "field-a",
+  "zone_id": "zone-a1",
+  "timestamp": "2026-05-01T12:00:00Z",
+  "measurement_id": "soil.moisture.vwc",
+  "layer": "SoilPhysics",
+  "value": 0.23,
+  "unit": "m3/m3",
+  "measurement_basis": "direct",
+  "confidence": "medium",
+  "source": {
+    "type": "sensor",
+    "sensor_model": "capacitive_probe",
+    "depth_cm": 30
+  }
+}

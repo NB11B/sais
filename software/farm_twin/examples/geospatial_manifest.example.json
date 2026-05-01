@@ -1,0 +1,19 @@
+{
+  "schema": "sais.geospatial_manifest.v1",
+  "farm_id": "local",
+  "generated_at": "2026-05-01T20:00:00Z",
+  "input_layers": {
+    "dem": "dem.tif",
+    "soils": "soils.geojson"
+  },
+  "derived_layers": {
+    "slope": "slope.tif",
+    "aspect": "aspect.tif",
+    "flow_accumulation": "flow_accumulation.tif",
+    "soils_hydrologic_group": "soils_hydrologic_group.tif",
+    "runoff_risk": "runoff_risk.tif"
+  },
+  "assumptions": [
+    "runoff_risk is a heuristic susceptibility index"
+  ]
+}
