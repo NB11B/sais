@@ -131,7 +131,31 @@ LoRa (Long Range) radio operates in the 915 MHz (US) or 868 MHz (EU) ISM band an
 
 ---
 
-## 8. Package 4: The Carbon Verification Array (Phase 3)
+## 8. Package 8: Vision AI & Thermal Health Monitor (Phase 2)
+**Target:** Dairy parlors, feedlot processing chutes, and high-traffic water points.
+**Pain Point Solved:** Labor-intensive manual health inspections; undetected early-stage fever, mastitis, or lameness.
+**Intelligence Value:** Automated Body Condition Scoring (BCS), gait symmetry analysis, and passive fever detection.
+
+This package elevates the SAIS node from a telemetry gateway to an automated veterinary assistant. By combining an optical camera with a low-cost thermal imager, the node performs continuous, non-invasive health screening on every animal that walks past it. This requires the UNO Q's Cortex-A53 and Adreno GPU to run the edge inference models.
+
+| Sensor / Actuator | Interface | Purpose | Estimated Cost |
+|---|---|---|---|
+| **MLX90640 Thermal Camera Array** | I2C | 32x24 pixel far-infrared array. Measures absolute surface temperature (-40°C to 300°C) to detect fever or localized inflammation (e.g., mastitis). | $45.00 |
+| **Arducam 5MP Plus (OV5642)** | SPI / CSI | Standard optical camera for animal identification, pose estimation, and Body Condition Scoring (BCS). | $25.00 |
+| **UNO Q Adreno 702 GPU** | Internal | Runs the TensorFlow Lite / NXP eIQ vision models locally. No cloud processing required. | $0.00 (built-in) |
+
+*Deployment Note:* The node is mounted above a natural choke point — a milking parlor entrance, a squeeze chute, or a water trough. As the animal passes through the frame, the optical camera runs a pose-estimation model to track anatomical landmarks (spine, hips, tailhead). The thermal camera simultaneously maps the surface temperature of the animal.
+
+**The Edge AI Insight:** The intelligence is entirely local. The node does not stream video over the network (which would crush a LoRa or cellular link). Instead, the GPU processes the frames in real-time and outputs only the *inferences*:
+1. **Fever Detection:** The MLX90640 identifies the eye or ear base (the most accurate external proxies for core temperature) and flags any reading above the baseline.
+2. **Body Condition Scoring (BCS):** The optical model evaluates the fat cover over the pelvis and spine, assigning an automated 1–5 score. A dropping BCS trend across the herd is the earliest indicator of feed quality issues.
+3. **Lameness Detection:** By tracking hoof placement frame-by-frame, the model detects gait asymmetry before the animal shows visible signs of a limp.
+
+When an anomaly is detected, the node sends a tiny JSON payload over the DDS mesh: `{"tag_id": "A492", "alert": "fever", "temp_c": 39.8, "confidence": 0.92}`. The farmer receives a plain-English alert on the C2 Dashboard, and the sick animal can be drafted for treatment automatically.
+
+---
+
+## 9. Package 4: The Carbon Verification Array (Phase 3)
 **Target:** Regenerative agriculture plots seeking Carbon-Plus bond issuance.
 **Pain Point Solved:** $50,000 manual MRV auditor fees.
 **Intelligence Value:** The cryptographic proof of soil carbon sequestration.
