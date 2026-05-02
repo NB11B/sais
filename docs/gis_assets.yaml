@@ -1,0 +1,22 @@
+# SAIS GIS Asset Registry
+# Defines offline-first geospatial layers to be loaded into the GIS Twin.
+
+assets:
+  - id: fences-north
+    name: "Internal Fences"
+    type: "FeatureCollection"
+    path: "data/gis/fences.geojson"
+    style:
+      color: "#f59e0b"
+      weight: 2
+      dashArray: "5, 5"
+    description: "Electric and permanent fencing layout."
+
+  - id: water-infra
+    name: "Water Infrastructure"
+    type: "FeatureCollection"
+    path: "data/gis/water.geojson"
+    style:
+      color: "#06b6d4"
+      weight: 3
+    description: "Pipes, tanks, and troughs."

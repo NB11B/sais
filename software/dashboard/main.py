@@ -11,8 +11,10 @@ sais_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, os.path.join(sais_root, 'software', 'farm_twin'))
 
 from farm_twin.graph import FarmGraph
+from farm_twin.gis_registry import GisRegistry
 
 app = FastAPI(title="SAIS Dashboard API")
+gis_registry = GisRegistry()
 
 # Setup static and templates
 base_dir = os.path.dirname(__file__)
@@ -123,6 +125,17 @@ async def post_observation(payload: ObservationPayload):
         return {"status": "success", "obs_id": obs_id}
     finally:
         graph.storage.conn.close()
+
+@app.get("/api/gis/assets")
+async def get_gis_assets():
+    return {"assets": gis_registry.get_asset_list()}
+
+@app.get("/api/gis/data/{asset_id}")
+async def get_gis_data(asset_id: str):
+    data = gis_registry.get_asset_data(asset_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="GIS asset not found or data missing")
+    return data
 
 @app.get("/api/graph")
 async def get_graph_summary():

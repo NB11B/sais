@@ -99,6 +99,64 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Add all layer groups to map initially
         Object.keys(layers).forEach(cat => map.addLayer(layers[cat]));
 
+        // --- NEW: Load Auxiliary GIS Assets ---
+        const gisRes = await fetch('/api/gis/assets');
+        const gisData = await gisRes.json();
+        
+        for (const asset of gisData.assets) {
+            const assetLayer = new L.featureGroup();
+            
+            // UI Toggle
+            const wrapper = document.createElement('div');
+            wrapper.className = 'layer-item'; // Use existing panel style
+            wrapper.style.display = 'flex';
+            wrapper.style.alignItems = 'center';
+            wrapper.style.gap = '10px';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = true;
+            
+            const label = document.createElement('label');
+            label.innerHTML = `<div class="layer-type">${asset.name}</div><div class="layer-path">${asset.description || ''}</div>`;
+            label.style.flex = "1";
+            
+            const badge = document.createElement('div');
+            badge.style.width = '12px';
+            badge.style.height = '12px';
+            badge.style.background = asset.style.color;
+            badge.style.borderRadius = '2px'; // Square for assets
+            
+            wrapper.appendChild(checkbox);
+            wrapper.appendChild(badge);
+            wrapper.appendChild(label);
+            layerToggles.appendChild(wrapper);
+            
+            // Fetch and render data
+            try {
+                const dataRes = await fetch(`/api/gis/data/${asset.id}`);
+                const geojson = await dataRes.json();
+                
+                L.geoJSON(geojson, {
+                    style: {
+                        color: asset.style.color,
+                        weight: asset.style.weight || 2,
+                        dashArray: asset.style.dashArray || null,
+                        fillOpacity: 0.1
+                    }
+                }).bindPopup(`<b>${asset.name}</b>`).addTo(assetLayer);
+                
+                map.addLayer(assetLayer);
+            } catch (e) {
+                console.error(`Failed to load GIS data for ${asset.id}`, e);
+            }
+            
+            checkbox.addEventListener('change', (e) => {
+                if (e.target.checked) map.addLayer(assetLayer);
+                else map.removeLayer(assetLayer);
+            });
+        }
+
         if (boundaries.length > 0) {
             const group = new L.featureGroup();
             Object.keys(layers).forEach(cat => {

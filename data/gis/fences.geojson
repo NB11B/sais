@@ -1,0 +1,17 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "North Fence Line" },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-98.58, 39.83],
+          [-98.57, 39.83],
+          [-98.57, 39.84]
+        ]
+      }
+    }
+  ]
+}
