@@ -50,6 +50,41 @@ async def get_observations(limit: int = 20):
     graph.storage.conn.close()
     return {"observations": obs}
 
+@app.post("/api/observations")
+async def post_observation(request: Request):
+    import tempfile
+    from farm_twin.ingest_observation import ingest_sensor_observation
+    from farm_twin.cards import generate_water_retention_card
+    
+    data = await request.json()
+    
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".json") as f:
+        json.dump(data, f)
+        temp_path = f.name
+        
+    graph = get_graph()
+    
+    try:
+        # Ingest the observation
+        obs_id = ingest_sensor_observation(graph, temp_path)
+        
+        # Trigger intelligence rule if it relates to water/moisture
+        farm_id = data.get("farm_id")
+        zone_id = data.get("zone_id")
+        
+        if farm_id and zone_id:
+            zone_node = graph.get_node(zone_id)
+            field_id = zone_node["payload"].get("field_id") if zone_node else None
+            
+            if field_id:
+                generate_water_retention_card(graph, farm_id, field_id, zone_id)
+                
+        return {"status": "success", "obs_id": obs_id}
+    finally:
+        graph.storage.conn.close()
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
 @app.get("/api/graph")
 async def get_graph_summary():
     graph = get_graph()
