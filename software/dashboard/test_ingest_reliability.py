@@ -30,6 +30,27 @@ def test_invalid_types():
     resp = client.post("/api/observations", json=payload)
     assert resp.status_code == 422
 
+def test_observation_without_source_is_accepted():
+    payload = {
+        "schema": "sais.observation.v1",
+        "node_id": "no-source-sensor",
+        "farm_id": "local",
+        "zone_id": "zone-a1",
+        "timestamp": "2026-05-02T14:00:00Z",
+        "measurement_id": "soil.moisture.vwc",
+        "layer": "SoilPhysics",
+        "value": 0.21
+    }
+    resp = client.post("/api/observations", json=payload)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "success"
+
+    obs_resp = client.get("/api/observations")
+    observations = obs_resp.json()["observations"]
+    matching = [o for o in observations if o.get("node_id") == "no-source-sensor"]
+    assert len(matching) == 1
+    assert matching[0]["source"] == {}
+
 @pytest.mark.asyncio
 async def test_concurrent_post():
     payload = {
