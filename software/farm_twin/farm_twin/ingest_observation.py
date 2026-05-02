@@ -12,25 +12,24 @@ def ingest_farm_profile(graph: FarmGraph, profile_path: str):
         
     farm_id = data.get("farm_id")
     
-    # Add Farm
-    farm = Farm(id=farm_id, name=data.get("name", farm_id))
+    farm = Farm(id=farm_id, name=data.get("name", farm_id), boundary_geojson=data.get("boundary_geojson"))
     graph.add_node(farm)
     
     # Add Fields
     for field_data in data.get("fields", []):
-        field = Field(id=field_data["id"], farm_id=farm_id, name=field_data["name"])
+        field = Field(id=field_data["id"], farm_id=farm_id, name=field_data["name"], boundary_geojson=field_data.get("boundary_geojson"))
         graph.add_node(field)
         graph.add_edge(farm_id, "CONTAINS", field.id)
         
         # Add Zones
         for zone_data in field_data.get("zones", []):
-            zone = ManagementZone(id=zone_data["id"], field_id=field.id, name=zone_data["name"])
+            zone = ManagementZone(id=zone_data["id"], field_id=field.id, name=zone_data["name"], boundary_geojson=zone_data.get("boundary_geojson"))
             graph.add_node(zone)
             graph.add_edge(field.id, "CONTAINS", zone.id)
             
         # Add Paddocks
         for pad_data in field_data.get("paddocks", []):
-            pad = Paddock(id=pad_data["id"], field_id=field.id, name=pad_data["name"])
+            pad = Paddock(id=pad_data["id"], field_id=field.id, name=pad_data["name"], boundary_geojson=pad_data.get("boundary_geojson"))
             graph.add_node(pad)
             graph.add_edge(field.id, "CONTAINS", pad.id)
             
