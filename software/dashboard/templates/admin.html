@@ -203,7 +203,26 @@
                 </div>
 
                 <div class="wizard-step">
-                    <h3>5. Sensor Placement</h3>
+                    <h3>5. Discovered Nodes (Pending Approval)</h3>
+                    <div id="pending-nodes-container">
+                        <table class="node-provision-table">
+                            <thead>
+                                <tr>
+                                    <th>Node ID</th>
+                                    <th>Status</th>
+                                    <th>Signal</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pending-nodes-body">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="wizard-step">
+                    <h3>6. Sensor Placement (Assigned Nodes)</h3>
                     <form id="sensor-form">
                         <div class="form-group">
                             <label>Sensor Node ID</label>
@@ -262,7 +281,31 @@
                 </div>
 
                 <div class="wizard-step">
-                    <h3>7. Log Grazing Event</h3>
+                    <h3>7. Ranch Infrastructure (Fences, Gates)</h3>
+                    <form id="infra-reg-form">
+                        <div class="form-group">
+                            <label>Asset ID</label>
+                            <input type="text" id="reg_inf_id" class="form-control" placeholder="e.g. gate-north-1" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Asset Type</label>
+                            <select id="reg_inf_type" class="form-control" required>
+                                <option value="Gate">Gate</option>
+                                <option value="Fence">Fence</option>
+                                <option value="Road">Road</option>
+                                <option value="Solar">Solar Array</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>GeoJSON Geometry (Point or LineString)</label>
+                            <textarea id="reg_inf_geojson" class="form-control" placeholder='{"type": "Point", "coordinates": [-104.5, 40.2]}' required></textarea>
+                        </div>
+                        <button type="submit" class="btn">Register Infrastructure Asset</button>
+                    </form>
+                </div>
+
+                <div class="wizard-step">
+                    <h3>8. Log Grazing Event</h3>
                     <form id="grazing-form">
                         <div class="form-group">
                             <label>Paddock ID</label>
@@ -290,6 +333,41 @@
 
             <div id="admin-map"></div>
         </main>
+    </div>
+
+    <!-- WP19: Provisioning Modal -->
+    <div id="provision-modal" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-node-id">Provision Node</h3>
+            <form id="provision-form">
+                <input type="hidden" id="prov-node-id">
+                <div class="form-group">
+                    <label>Role Template</label>
+                    <select id="prov-role" class="form-control" required>
+                        <option value="soil_probe">Soil Health Probe</option>
+                        <option value="weather_station">Micro-Climate Station</option>
+                        <option value="tank_level">Water Storage Monitor</option>
+                        <option value="gate_status">Infrastructure Security Sensor</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Target Field/Zone/Paddock</label>
+                    <input type="text" id="prov-target" class="form-control" placeholder="e.g. paddock-1">
+                </div>
+                <div class="form-group">
+                    <label>Latitude</label>
+                    <input type="number" step="any" id="prov-lat" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Longitude</label>
+                    <input type="number" step="any" id="prov-lng" class="form-control">
+                </div>
+                <div style="display:flex; gap: 12px;">
+                    <button type="submit" class="btn">Provision & Accept</button>
+                    <button type="button" class="btn" style="background:#475569" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script src="/static/admin.js"></script>

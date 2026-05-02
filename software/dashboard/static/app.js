@@ -27,6 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const plantForm = document.getElementById('plant-form');
     const plPaddockSelect = document.getElementById('pl_paddock_id');
 
+    const soilModal = document.getElementById('soil-modal');
+    const openSoilBtn = document.getElementById('open-soil-btn');
+    const soilForm = document.getElementById('soil-form');
+    const slPaddockSelect = document.getElementById('sl_paddock_id');
+
+    const infraModal = document.getElementById('infra-modal');
+    const openInfraBtn = document.getElementById('open-infra-btn');
+    const infraForm = document.getElementById('infra-form');
+
     // Modal Control
     if (openLsBtn) {
         openLsBtn.onclick = (e) => {
@@ -51,12 +60,29 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    if (openSoilBtn) {
+        openSoilBtn.onclick = (e) => {
+            e.preventDefault();
+            soilModal.style.display = 'block';
+            populatePaddocks(slPaddockSelect);
+        };
+    }
+
+    if (openInfraBtn) {
+        openInfraBtn.onclick = (e) => {
+            e.preventDefault();
+            infraModal.style.display = 'block';
+        };
+    }
+
     // Generic close for all modals
     document.querySelectorAll('.close-modal').forEach(btn => {
         btn.onclick = () => {
             lsModal.style.display = 'none';
             waterModal.style.display = 'none';
             plantModal.style.display = 'none';
+            soilModal.style.display = 'none';
+            infraModal.style.display = 'none';
         };
     });
 
@@ -64,7 +90,66 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target == lsModal) lsModal.style.display = 'none';
         if (event.target == waterModal) waterModal.style.display = 'none';
         if (event.target == plantModal) plantModal.style.display = 'none';
+        if (event.target == soilModal) soilModal.style.display = 'none';
+        if (event.target == infraModal) infraModal.style.display = 'none';
     };
+
+    if (soilForm) {
+        soilForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const paddockId = slPaddockSelect.value;
+            const payload = {
+                schema: "sais.soil_observation.v1",
+                id: `soil-${paddockId}-${Date.now()}`,
+                farm_id: "local",
+                paddock_id: paddockId,
+                timestamp: new Date().toISOString(),
+                infiltration_mm_hr: parseFloat(document.getElementById('sl_rate').value),
+                notes: document.getElementById('sl_notes').value
+            };
+
+            try {
+                const res = await fetch('/api/soil/observations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    soilModal.style.display = 'none';
+                    soilForm.reset();
+                    fetchCards();
+                    fetchObservations();
+                }
+            } catch (e) { console.error(e); }
+        };
+    }
+
+    if (infraForm) {
+        infraForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const assetId = document.getElementById('inf_id').value;
+            const payload = {
+                id: assetId,
+                farm_id: "local",
+                asset_type: document.getElementById('inf_type').value,
+                status: document.getElementById('inf_status').value
+            };
+
+            try {
+                const res = await fetch('/api/infrastructure/status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    infraModal.style.display = 'none';
+                    infraForm.reset();
+                    fetchCards();
+                    fetchObservations();
+                }
+            } catch (e) { console.error(e); }
+        };
+    }
 
     if (plantForm) {
         plantForm.onsubmit = async (e) => {
@@ -188,11 +273,46 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (data.cards.length === 0) {
                 cardsContainer.innerHTML = '<div class="loading">No cards generated yet.</div>';
+                document.getElementById('summary-panel').style.display = 'none';
                 return;
             }
             
+            // Handle Ranch Health Card (Singleton)
+            const healthCard = data.cards.find(c => c.card_type === 'RanchHealthCard');
+            const summaryPanel = document.getElementById('summary-panel');
+            const healthContainer = document.getElementById('ranch-health-container');
+            
+            if (healthCard) {
+                summaryPanel.style.display = 'block';
+                const statusClass = `status-${healthCard.status}`;
+                
+                let scoreHtml = '<div class="scorecard-grid">';
+                Object.entries(healthCard.scorecard).forEach(([pfkr, status]) => {
+                    scoreHtml += `
+                        <div class="score-item status-${status}">
+                            <div class="score-label">${pfkr}</div>
+                        </div>
+                    `;
+                });
+                scoreHtml += '</div>';
+
+                healthContainer.innerHTML = `
+                    <div class="health-header">
+                        <div class="health-title">${healthCard.observation}</div>
+                        <div class="health-status-badge ${statusClass}">${healthCard.status.toUpperCase()}</div>
+                    </div>
+                    ${scoreHtml}
+                    <div class="health-context">${healthCard.context.join(' &middot; ')}</div>
+                `;
+            } else {
+                summaryPanel.style.display = 'none';
+            }
+
             cardsContainer.innerHTML = '';
-            data.cards.forEach(card => {
+            // Filter out health card from the main list as it has its own panel
+            const feedCards = data.cards.filter(c => c.card_type !== 'RanchHealthCard');
+            
+            feedCards.forEach(card => {
                 const el = document.createElement('div');
                 el.className = 'card-item';
                 if (card.action_status === 'resolved') {

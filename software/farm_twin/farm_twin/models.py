@@ -83,6 +83,29 @@ class PlantObservation(GraphEntity):
     notes: Optional[str] = None
 
 @dataclass
+class SoilObservation(GraphEntity):
+    id: str
+    farm_id: str
+    timestamp: str
+    paddock_id: Optional[str] = None
+    zone_id: Optional[str] = None
+    infiltration_mm_hr: Optional[float] = None
+    organic_matter_pct: Optional[float] = None
+    soil_temp_c: Optional[float] = None
+    biological_activity_score: Optional[int] = None # 1-5
+    notes: Optional[str] = None
+
+@dataclass
+class InfrastructureAsset(GraphEntity):
+    id: str
+    farm_id: str
+    asset_type: str # Fence, Gate, Road, Pump, Solar
+    name: str
+    status: str # ok, broken, open, closed, unknown
+    location_geojson: Optional[Dict[str, Any]] = None
+    notes: Optional[str] = None
+
+@dataclass
 class SoilMapUnit(GraphEntity) :
     id: str
     farm_id: str

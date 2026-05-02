@@ -11,7 +11,98 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await loadMapData();
     setupForms();
+    loadPendingNodes();
+    setupProvisionForm();
+    loadRoleTemplates();
 });
+
+async function loadRoleTemplates() {
+    try {
+        const res = await fetch('/api/nodes/roles');
+        const data = await res.json();
+        const select = document.getElementById('prov-role');
+        if (select) {
+            select.innerHTML = '';
+            Object.keys(data.roles).forEach(key => {
+                const role = data.roles[key];
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.textContent = role.name;
+                select.appendChild(opt);
+            });
+        }
+    } catch (e) { console.error("Failed to load role templates", e); }
+}
+
+async function loadPendingNodes() {
+    try {
+        const res = await fetch('/api/nodes/pending');
+        const data = await res.json();
+        const body = document.getElementById('pending-nodes-body');
+        body.innerHTML = '';
+        
+        data.nodes.forEach(node => {
+            const row = document.createElement('tr');
+            const rssi = node.payload?.rssi || 'N/A';
+            const batt = node.payload?.battery || 'N/A';
+            
+            row.innerHTML = `
+                <td><b>${node.id}</b></td>
+                <td><span class="badge badge-status-pending">DISCOVERED</span></td>
+                <td>
+                    <span class="badge badge-rssi">${rssi} dBm</span>
+                    <span class="badge badge-battery">${batt} mV</span>
+                </td>
+                <td>
+                    <button class="btn btn-small" onclick="openProvisionModal('${node.id}')">Provision</button>
+                    <button class="btn btn-small" style="background:#ef4444" onclick="rejectNode('${node.id}')">Reject</button>
+                </td>
+            `;
+            body.appendChild(row);
+        });
+    } catch (e) { console.error("Failed to load pending nodes", e); }
+}
+
+function openProvisionModal(nodeId) {
+    document.getElementById('modal-node-id').textContent = `Provision Node: ${nodeId}`;
+    document.getElementById('prov-node-id').value = nodeId;
+    document.getElementById('provision-modal').style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('provision-modal').style.display = 'none';
+}
+
+function setupProvisionForm() {
+    document.getElementById('provision-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const nodeId = document.getElementById('prov-node-id').value;
+        const payload = {
+            role: document.getElementById('prov-role').value,
+            paddock_id: document.getElementById('prov-target').value,
+            farm_id: farmId,
+            location: {
+                lat: parseFloat(document.getElementById('prov-lat').value),
+                lng: parseFloat(document.getElementById('prov-lng').value)
+            }
+        };
+        
+        // 1. Accept
+        await fetch(`/api/nodes/${nodeId}/accept`, { method: 'POST' });
+        // 2. Assign
+        await submitApi(`/api/nodes/${nodeId}/assignment`, 'PUT', payload);
+        
+        closeModal();
+        loadPendingNodes();
+    };
+}
+
+async function rejectNode(nodeId) {
+    if (confirm(`Reject node ${nodeId}? Data will be blocked.`)) {
+        await fetch(`/api/nodes/${nodeId}/reject`, { method: 'POST' });
+        loadPendingNodes();
+    }
+}
 
 async function loadMapData() {
     try {
@@ -170,6 +261,18 @@ function setupForms() {
         };
         await submitApi('/api/infrastructure/water', 'POST', payload);
         e.target.reset();
+    });
+
+    document.getElementById('infra-reg-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            id: document.getElementById('reg_inf_id').value,
+            farm_id: farmId,
+            asset_type: document.getElementById('reg_inf_type').value,
+            status: "unknown",
+            location_geojson: parseGeoJSON(document.getElementById('reg_inf_geojson').value)
+        };
+        await submitApi('/api/infrastructure/asset', 'POST', payload);
     });
 
     document.getElementById('sensor-form').addEventListener('submit', async (e) => {

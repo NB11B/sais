@@ -104,3 +104,21 @@ class PlantObservationPayload(BaseModel):
     brix: Optional[float] = None
     leaf_temperature: Optional[float] = None
     notes: Optional[str] = None
+
+class SoilObservationPayload(BaseModel):
+    schema_version: str = Field(alias="schema", default="sais.soil_observation.v1")
+    id: str
+    farm_id: str
+    paddock_id: Optional[str] = None
+    timestamp: str
+    infiltration_mm_hr: Optional[float] = None
+    organic_matter_pct: Optional[float] = None
+    soil_temp_c: Optional[float] = None
+    notes: Optional[str] = None
+
+class InfrastructureStatusPayload(BaseModel):
+    id: str
+    farm_id: str
+    asset_type: str
+    status: str
+    notes: Optional[str] = None

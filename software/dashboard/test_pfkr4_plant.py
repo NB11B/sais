@@ -27,7 +27,12 @@ def setup_teardown(request):
     graph = get_graph()
     farm = Farm(id="local", name="Test Farm")
     # Paddock with area placeholder or real area
-    paddock = Paddock(id="paddock-1", field_id="field-a", name="Paddock 1")
+    paddock = Paddock(
+        id="paddock-1", 
+        field_id="field-a", 
+        name="Paddock 1",
+        boundary_geojson={"type": "Polygon", "coordinates": [[[0,0], [0,1], [1,1], [1,0], [0,0]]]}
+    )
     graph.add_node(farm)
     graph.add_node(paddock)
     

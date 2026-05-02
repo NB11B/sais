@@ -15,7 +15,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         "ManagementZone": { color: "#06b6d4", weight: 1, opacity: 0.2 },
         "Paddock": { color: "#f59e0b", weight: 1, opacity: 0.2 },
         "SensorNode": { color: "#ef4444" }, // markers
-        "WaterAsset": { color: "#0ea5e9" } // sky blue markers
+        "WaterAsset": { color: "#0ea5e9" }, // sky blue markers
+        "InfrastructureAsset": { color: "#94a3b8" } // slate grey
+    };
+
+    const status_colors = {
+        "ok": "#10b981", // green
+        "open": "#ef4444", // red
+        "broken": "#f59e0b", // orange
+        "unknown": "#94a3b8" // grey
     };
 
     // Initialize layer groups
@@ -109,6 +117,34 @@ document.addEventListener('DOMContentLoaded', async () => {
                         })
                     }).bindPopup(`<b>${node.name}</b><br>Type: ${node.payload.asset_type}`);
                     layers.WaterAsset.addLayer(marker);
+                }
+            }
+
+            // Render Infrastructure Assets
+            if (category === "InfrastructureAsset" && node.payload && node.payload.location_geojson) {
+                const geojson = node.payload.location_geojson;
+                const status = node.payload.status || "unknown";
+                const color = status_colors[status] || status_colors.unknown;
+                
+                if (geojson.type === "Point") {
+                    const icon = node.payload.asset_type === 'Gate' ? '🚪' : '🔋';
+                    const marker = L.marker([geojson.coordinates[1], geojson.coordinates[0]], {
+                        icon: L.divIcon({
+                            html: `<div style="font-size: 20px; filter: drop-shadow(0 0 2px ${color});">${icon}</div>`,
+                            className: 'infra-icon',
+                            iconSize: [20, 20]
+                        })
+                    }).bindPopup(`<b>${node.name}</b><br>Type: ${node.payload.asset_type}<br>Status: <span style="color:${color}">${status.toUpperCase()}</span>`);
+                    layers.InfrastructureAsset.addLayer(marker);
+                } else if (geojson.type === "LineString") {
+                    const line = L.geoJSON(geojson, {
+                        style: {
+                            color: color,
+                            weight: 4,
+                            dashArray: node.payload.asset_type === 'Fence' ? '5, 5' : null
+                        }
+                    }).bindPopup(`<b>${node.name}</b><br>Type: ${node.payload.asset_type}<br>Status: <span style="color:${color}">${status.toUpperCase()}</span>`);
+                    layers.InfrastructureAsset.addLayer(line);
                 }
             }
         });

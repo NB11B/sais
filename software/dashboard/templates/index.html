@@ -3,11 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SAIS | Sovereign Ag-Infrastructure Stack</title>
+    <title>SAIS | Ranch Command & Control</title>
+    <meta name="description" content="Sovereign Ag-Infrastructure Stack: Advanced C4ISR for modern ranch management, featuring real-time GIS twins and cross-domain intelligence fusion.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .logo { font-family: 'Outfit', sans-serif; }
+    </style>
 </head>
 <body>
     <div class="app-container">
@@ -27,6 +32,13 @@
         </header>
 
         <main class="dashboard-grid">
+            <!-- Command Summary: Aggregated Ranch Health -->
+            <section class="panel summary-panel" id="summary-panel" style="grid-column: span 3; display: none;">
+                <div class="panel-content" id="ranch-health-container">
+                    <!-- RanchHealthCard will be injected here -->
+                </div>
+            </section>
+
             <!-- Left Column: Intelligence Cards -->
             <section class="panel cards-panel">
                 <div class="panel-header">
@@ -93,6 +105,12 @@
             </a>
             <a href="#" class="mobile-nav-link action-link" id="open-plant-btn" style="background: var(--accent);">
                 <span>Plant</span>
+            </a>
+            <a href="#" class="mobile-nav-link action-link" id="open-soil-btn" style="background: var(--status-ok);">
+                <span>Soil</span>
+            </a>
+            <a href="#" class="mobile-nav-link action-link" id="open-infra-btn" style="background: var(--status-alert);">
+                <span>Infra</span>
             </a>
         </nav>
     </div>
@@ -180,6 +198,67 @@
                     <input type="number" id="pl_recovery" class="form-control" placeholder="1=Stressed, 5=Prime">
                 </div>
                 <button type="submit" class="btn" style="background: var(--accent); border-color: var(--accent);">Record Plant Status</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Soil Test Modal -->
+    <div id="soil-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Soil Infiltration Test</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <form id="soil-form">
+                <div class="form-group">
+                    <label>Paddock</label>
+                    <select id="sl_paddock_id" class="form-control" required>
+                        <option value="">Select Paddock...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Infiltration Rate (mm/hr)</label>
+                    <input type="number" id="sl_rate" class="form-control" placeholder="e.g. 25" required>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="sl_notes" class="form-control"></textarea>
+                </div>
+                <button type="submit" class="btn" style="background: var(--status-ok); border-color: var(--status-ok);">Record Soil Test</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Infrastructure Log Modal -->
+    <div id="infra-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Infrastructure Log</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <form id="infra-form">
+                <div class="form-group">
+                    <label>Asset ID</label>
+                    <input type="text" id="inf_id" class="form-control" placeholder="e.g. main-gate-1" required>
+                </div>
+                <div class="form-group">
+                    <label>Asset Type</label>
+                    <select id="inf_type" class="form-control" required>
+                        <option value="Gate">Gate</option>
+                        <option value="Fence">Fence</option>
+                        <option value="Pump">Pump</option>
+                        <option value="Road">Road</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="inf_status" class="form-control" required>
+                        <option value="ok">OK / Secure</option>
+                        <option value="open">Open / Unsecured</option>
+                        <option value="broken">Broken / Faulty</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn" style="background: var(--status-alert); border-color: var(--status-alert);">Log Asset Status</button>
             </form>
         </div>
     </div>

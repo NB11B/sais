@@ -63,7 +63,7 @@ def test_log_grazing_event(client):
     cards = r.json()["cards"]
     grazing_cards = [c for c in cards if c["card_type"] == "GrazingReadinessCard"]
     assert len(grazing_cards) == 1
-    assert grazing_cards[0]["status"] == "not_ready"
+    assert grazing_cards[0]["status"] == "action"
     assert "Days since last graze: 10" in grazing_cards[0]["evidence"]
 
 def test_grazing_ready_state(client):

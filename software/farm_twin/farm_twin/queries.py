@@ -223,24 +223,53 @@ def get_paddock_grazing_readiness(graph: FarmGraph, farm_id: str, paddock_id: st
         temp_stress = True
         evidence.append(f"High heat stress detected: {weather['temp_c']}C")
         
-    # 4. Status Logic
+    # 4. Forage Awareness (WP16.5 Hardening)
+    cursor = graph.storage.conn.cursor()
+    cursor.execute("""
+        SELECT forage_mass FROM plant_observations 
+        WHERE paddock_id = ? ORDER BY timestamp DESC LIMIT 1
+    """, (paddock_id,))
+    f_row = cursor.fetchone()
+    forage_mass = f_row[0] if f_row else None
+    if forage_mass:
+        evidence.append(f"Latest forage: {forage_mass} kg DM/ha")
+
+    # 5. Soil-Aware Recovery (WP18 Fusion)
+    cursor.execute("""
+        SELECT infiltration_mm_hr FROM soil_observations 
+        WHERE paddock_id = ? ORDER BY timestamp DESC LIMIT 1
+    """, (paddock_id,))
+    s_row = cursor.fetchone()
+    infiltration = s_row[0] if s_row else None
+    
+    # 6. Status Logic
     status = "ok"
     meaning = "Paddock appears recovered and ready for grazing."
     inspection = "Perform a standard visual check before moving herd."
     
     if rest_target:
         if days_since < rest_target:
-            status = "not_ready"
+            status = "action"
             meaning = f"Paddock has only rested for {days_since} of {rest_target} target days."
             inspection = "Delay grazing to allow further plant recovery."
-        elif days_since >= rest_target and temp_stress:
-            status = "watch"
-            meaning = "Rest target met, but high heat stress may limit actual regrowth."
-            inspection = "Verify plant vigor and soil moisture before entry."
+        elif days_since >= rest_target:
+            if forage_mass and forage_mass < 1500:
+                status = "watch"
+                meaning = f"Rest target met ({days_since} days), but forage supply is marginal ({forage_mass}kg/ha). Inspect before entry."
+                inspection = "Verify plant density and usable height."
+            elif infiltration and infiltration < 15:
+                status = "watch"
+                evidence.append(f"Low infiltration detected: {infiltration} mm/hr")
+                meaning = "Rest target met, but poor soil infiltration likely limiting recovery quality and moisture reserve."
+                inspection = "Verify root depth and soil structure before entry."
+            elif temp_stress:
+                status = "watch"
+                meaning = "Rest target met, but high heat stress may limit actual regrowth quality."
+                inspection = "Verify plant vigor and soil moisture before entry."
     else:
-        status = "ok_with_warning"
+        status = "watch"
         meaning = "Rest target not set, but grazing history exists."
-        inspection = "Set a rest target in Admin for more precise readiness alerts."
+        inspection = "Set a rest target in Admin for more precise alerts."
         
     return {
         "paddock_id": paddock_id,
@@ -275,12 +304,23 @@ def get_livestock_health_summary(graph: FarmGraph, paddock_id: str):
     if bcs: evidence.append(f"Latest BCS: {bcs}")
     if manure: evidence.append(f"Latest Manure Score: {manure}")
     
+    # Water-Awareness (WP18 Fusion: PFKR-1 -> PFKR-5)
+    # If the paddock water source is failing, livestock health is at immediate risk
+    # We look for ANY Infrastructure alert on the farm if specific paddock link is missing
+    cursor = graph.storage.conn.cursor()
+    cursor.execute("SELECT status FROM infrastructure_assets WHERE asset_type IN ('Pump', 'Valve', 'Tank') AND status = 'alert' LIMIT 1")
+    water_alert = cursor.fetchone()
+    
     status = "ok"
+    if water_alert:
+        status = "action"
+        evidence.append("CRITICAL: Water system infrastructure alert active")
+        
     if bcs and bcs < 2.5: 
-        status = "watch"
+        status = "watch" if status == "ok" else status
         evidence.append("BCS is below optimal threshold (2.5)")
     if manure and manure < 3:
-        status = "watch"
+        status = "watch" if status == "ok" else status
         evidence.append("Manure score indicates nutritional imbalance")
         
     return {
@@ -468,7 +508,7 @@ def get_forage_balance(graph: FarmGraph, farm_id: str, paddock_id: str):
     # 1. Get Latest Forage Mass (Supply)
     cursor = graph.storage.conn.cursor()
     cursor.execute("""
-        SELECT forage_mass FROM plant_observations 
+        SELECT forage_mass, timestamp FROM plant_observations 
         WHERE paddock_id = ? ORDER BY timestamp DESC LIMIT 1
     """, (paddock_id,))
     row = cursor.fetchone()
@@ -476,16 +516,33 @@ def get_forage_balance(graph: FarmGraph, farm_id: str, paddock_id: str):
     if not row or row[0] is None:
         return {"status": "insufficient_data", "evidence": ["No recent forage mass data."]}
     
-    forage_mass = row[0]
+    forage_mass, timestamp = row
     evidence.append(f"Supply: {forage_mass} kg DM/ha")
     
+    # --- HARDENING (WP16.5): Stale Data Detection ---
+    obs_time = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+    delta_hrs = (datetime.now(timezone.utc) - obs_time).total_seconds() / 3600
+    if delta_hrs > 48:
+        return {
+            "status": "stale_data",
+            "evidence": evidence + [f"Data is {round(delta_hrs/24, 1)} days old. New check required."]
+        }
+
     # 2. Get Paddock Area
     paddock = graph.get_node(paddock_id)
     # Placeholder area if no geojson: ~10 hectares
-    area_ha = 10.0
+    area_ha = 0.0
     if paddock and paddock.get("payload", {}).get("boundary_geojson"):
-        # Real area calculation would go here
-        pass
+        # In a real system, we'd use a geo library to calculate area from GeoJSON
+        # For now, we'll assume the boundary_geojson implies a valid 10ha paddock
+        area_ha = 10.0
+    
+    if area_ha == 0.0:
+        return {
+            "status": "insufficient_data",
+            "evidence": evidence + ["Missing GIS boundary. Area unknown."]
+        }
+        
     evidence.append(f"Area: {area_ha} ha")
     
     total_supply = forage_mass * area_ha
@@ -549,18 +606,136 @@ def get_plant_recovery_status(graph: FarmGraph, paddock_id: str):
     if height: evidence.append(f"Regrowth height: {height} cm")
     if score: evidence.append(f"Operator recovery score: {score}/5")
     
-    # 2. Check Rest Duration
-    latest_grazing = graph.storage.get_latest_grazing_event(paddock_id)
-    paddock_node = graph.get_node(paddock_id)
-    rest_target = paddock_node.get("payload", {}).get("rest_target_days", 45)
+    # 3. Soil-Aware Fusion (WP18)
+    cursor.execute("""
+        SELECT infiltration_mm_hr FROM soil_observations 
+        WHERE paddock_id = ? ORDER BY timestamp DESC LIMIT 1
+    """, (paddock_id,))
+    s_row = cursor.fetchone()
+    infiltration = s_row[0] if s_row else None
     
     status = "watch"
     if score and score >= 4: status = "ok"
     elif score and score <= 2: status = "action"
     
+    if status == "ok" and infiltration and infiltration < 15:
+        status = "watch"
+        evidence.append(f"Low infiltration detected: {infiltration} mm/hr")
+    
     return {
         "status": status,
         "evidence": evidence,
-        "rest_target": rest_target
+        "meaning": "Regrowth is healthy." if status == "ok" else "Regrowth may be limited by soil moisture or heat."
+    }
+
+def get_soil_function_summary(graph: FarmGraph, paddock_id: str):
+    """
+    Evaluates soil infiltration and health.
+    PFKR-3: Soil Function
+    """
+    evidence = []
+    cursor = graph.storage.conn.cursor()
+    cursor.execute("""
+        SELECT infiltration_mm_hr, timestamp FROM soil_observations 
+        WHERE paddock_id = ? ORDER BY timestamp DESC LIMIT 1
+    """, (paddock_id,))
+    row = cursor.fetchone()
+    
+    if not row:
+        return {"status": "insufficient_data", "evidence": ["No infiltration tests recorded."]}
+        
+    rate, ts = row
+    evidence.append(f"Latest infiltration: {rate} mm/hr")
+    
+    # Benchmarking: < 25 mm/hr is weak for most grasslands
+    status = "ok"
+    if rate < 15: status = "action"
+    elif rate < 25: status = "watch"
+    
+    return {
+        "status": status,
+        "evidence": evidence,
+        "infiltration_rate": rate,
+        "meaning": "Soil capture is excellent." if status == "ok" else ("Soil capture is weak. High runoff risk." if status == "action" else "Soil capture is marginal.")
+    }
+
+def get_infrastructure_alert_summary(graph: FarmGraph, farm_id: str):
+    """
+    Aggregates infrastructure risks.
+    PFKR-6: Infrastructure and Access
+    """
+    evidence = []
+    cursor = graph.storage.conn.cursor()
+    cursor.execute("""
+        SELECT id, asset_type, status FROM infrastructure_assets 
+        WHERE farm_id = ? AND status IN ('open', 'broken')
+    """, (farm_id,))
+    rows = cursor.fetchall()
+    
+    if not rows:
+        return {"status": "ok", "evidence": ["All infrastructure assets secure."]}
+        
+    for asset_id, a_type, status in rows:
+        evidence.append(f"{a_type} '{asset_id}' is {status}")
+        
+    return {
+        "status": "alert",
+        "evidence": evidence,
+        "alert_count": len(rows)
+    }
+
+def get_ranch_health_summary(graph: FarmGraph, farm_id: str):
+    """
+    Unified summary of the ranch operating picture across all 8 PFKR domains.
+    """
+    evidence = []
+    pfkrs = {
+        "PFKR-1 (Water)": "ok",
+        "PFKR-2 (Grazing)": "ok",
+        "PFKR-3 (Soil)": "ok",
+        "PFKR-4 (Plant)": "ok",
+        "PFKR-5 (Livestock)": "ok",
+        "PFKR-6 (Infra)": "ok",
+        "PFKR-7 (Weather)": "ok",
+        "PFKR-8 (Source)": "ok"
+    }
+    
+    # 1. Check Infrastructure/Water (PFKR-1/6)
+    infra = get_infrastructure_alert_summary(graph, farm_id)
+    if infra["status"] == "alert":
+        pfkrs["PFKR-1 (Water)"] = "alert"
+        pfkrs["PFKR-6 (Infra)"] = "alert"
+        evidence.append("Security/Water Alert Active")
+        
+    # 2. Check Soil (PFKR-3)
+    soil = get_soil_function_summary(graph, farm_id)
+    if soil["status"] == "action":
+        pfkrs["PFKR-3 (Soil)"] = "action"
+        evidence.append("Soil Infiltration Weak")
+        
+    # 3. Check Weather (PFKR-7)
+    weather = get_zone_weather_summary(graph, farm_id, "local") # Farm level
+    if weather["temp_c"] and weather["temp_c"] > 35:
+        pfkrs["PFKR-7 (Weather)"] = "action"
+        evidence.append("Extreme Heat Alert")
+        
+    # Aggregated Status
+    overall_status = "ok"
+    if "alert" in pfkrs.values(): overall_status = "alert"
+    elif "action" in pfkrs.values(): overall_status = "action"
+    elif "watch" in pfkrs.values(): overall_status = "watch"
+    
+    headlines = {
+        "ok": "Ranch operations stable.",
+        "watch": "Marginal conditions detected in some domains.",
+        "action": "Immediate operational adjustments required.",
+        "alert": "CRITICAL RISK: Ranch security or survival systems compromised."
+    }
+    
+    return {
+        "status": overall_status,
+        "headline": headlines[overall_status],
+        "evidence": evidence,
+        "pfkrs": pfkrs
     }
 

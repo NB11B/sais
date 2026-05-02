@@ -293,7 +293,7 @@ def generate_plant_recovery_card(graph: FarmGraph, farm_id: str, paddock_id: str
         "title": f"Recovery Status: {paddock_id}",
         "status": summary["status"],
         "location": {"farm_id": farm_id, "paddock_id": paddock_id},
-        "observation": "Regrowth is progressing." if summary["status"] == "ok" else "Regrowth is slow or delayed.",
+        "observation": "Regrowth is out of date. Check required." if summary["status"] == "stale_data" else ("Regrowth is progressing." if summary["status"] == "ok" else "Regrowth is slow or delayed."),
         "context": summary["evidence"],
         "farmer_meaning": "Tracks how well plants are recovering after a grazing event.",
         "suggested_inspection": "Check for overgrazing or moisture stress.",
@@ -306,3 +306,128 @@ def generate_plant_recovery_card(graph: FarmGraph, farm_id: str, paddock_id: str
     graph.storage.add_card(f"card-recovery-{paddock_id}", now.isoformat(), card["card_type"], card["status"], card)
     return card
 
+def generate_soil_function_card(graph: FarmGraph, farm_id: str, paddock_id: str):
+    """
+    Generates a card for soil infiltration and health.
+    PFKR-3: Soil Function
+    """
+    from .queries import get_soil_function_summary
+    summary = get_soil_function_summary(graph, paddock_id)
+    
+    card = {
+        "card_type": "SoilFunctionCard",
+        "pfkr_id": "PFKR-3",
+        "pfkr_domain": "Soil Function and Biological Activity",
+        "title": f"Soil Function: {paddock_id}",
+        "status": summary["status"],
+        "location": {"farm_id": farm_id, "paddock_id": paddock_id},
+        "observation": summary.get("meaning", "Soil status unknown."),
+        "context": summary["evidence"],
+        "farmer_meaning": "Tracks rainfall capture and soil health via infiltration rates.",
+        "suggested_inspection": "Check for soil compaction or lack of ground cover." if summary["status"] != "ok" else "Standard soil monitoring.",
+        "possible_interventions": ["Increase animal impact", "Add cover crops", "Reduce grazing duration"],
+        "evidence": summary["evidence"],
+        "confidence": "high" if summary["status"] != "insufficient_data" else "low"
+    }
+    
+    now = datetime.now(timezone.utc)
+    graph.storage.add_card(f"card-soil-{paddock_id}", now.isoformat(), card["card_type"], card["status"], card)
+    return card
+
+def generate_infrastructure_alert_card(graph: FarmGraph, farm_id: str):
+    """
+    Generates an alert card for infrastructure risks.
+    PFKR-6: Infrastructure and Access
+    """
+    from .queries import get_infrastructure_alert_summary
+    summary = get_infrastructure_alert_summary(graph, farm_id)
+    
+    card = {
+        "card_type": "InfrastructureAlertCard",
+        "pfkr_id": "PFKR-6",
+        "pfkr_domain": "Infrastructure, Access, and Field Operations",
+        "title": "Infrastructure Security Alert" if summary["status"] == "alert" else "Infrastructure Status",
+        "status": summary["status"],
+        "location": {"farm_id": farm_id},
+        "observation": f"{summary.get('alert_count', 0)} security risks detected." if summary["status"] == "alert" else "All assets secure.",
+        "context": summary["evidence"],
+        "farmer_meaning": "Alerts for open gates, broken fences, or pump failures.",
+        "suggested_inspection": "Immediate field check required for reported assets.",
+        "possible_interventions": ["Close gates", "Repair fence", "Dispatch technician"],
+        "evidence": summary["evidence"],
+        "confidence": "high"
+    }
+    
+    now = datetime.now(timezone.utc)
+    graph.storage.add_card(f"card-infra-alert-{farm_id}", now.isoformat(), card["card_type"], card["status"], card)
+    return card
+
+def generate_ranch_health_card(graph: FarmGraph, farm_id: str):
+    """
+    Singleton card for the unified ranch command dashboard.
+    Aggregates overall health across all PFKR domains.
+    """
+    from .queries import get_ranch_health_summary
+    summary = get_ranch_health_summary(graph, farm_id)
+    
+    card = {
+        "card_type": "RanchHealthCard",
+        "title": "Ranch Command Summary",
+        "pfkr_id": "PFKR-UNIFIED",
+        "status": summary["status"],
+        "location": {"farm_id": farm_id},
+        "observation": summary["headline"],
+        "context": summary["evidence"],
+        "farmer_meaning": "Real-time operating picture across water, forage, and livestock.",
+        "suggested_inspection": "Consult the GIS Twin for location-specific risks.",
+        "possible_interventions": ["Review daily operations plan", "Check high-risk assets"],
+        "evidence": summary["evidence"],
+        "scorecard": summary["pfkrs"],
+        "confidence": "high"
+    }
+    
+    now = datetime.now(timezone.utc)
+    # This is a singleton card for the farm
+    graph.storage.add_card(f"card-ranch-health-{farm_id}", now.isoformat(), card["card_type"], card["status"], card)
+    return card
+def generate_source_health_card(graph: FarmGraph, farm_id: str):
+    """
+    Monitors the status of all provisioned sensors (PFKR-8).
+    Flags stale or disconnected hardware.
+    """
+    active_nodes = graph.storage.get_nodes_by_status("accepted")
+    evidence = []
+    stale_count = 0
+    now = datetime.now(timezone.utc)
+    
+    for node in active_nodes:
+        last_seen = node.get("last_seen")
+        if last_seen:
+            dt = datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
+            diff = (now - dt).total_seconds()
+            if diff > 7200: # 2 hours stale
+                stale_count += 1
+                evidence.append(f"Node {node['id']} is STALE (last seen {int(diff/60)} min ago)")
+    
+    status = "ok"
+    if stale_count > 0:
+        status = "watch"
+        if stale_count > 3: status = "action"
+        
+    card = {
+        "card_type": "SourceHealthCard",
+        "pfkr_id": "PFKR-8",
+        "pfkr_domain": "Source Health and Confidence",
+        "title": "Sensor Fleet Health",
+        "status": status,
+        "location": {"farm_id": farm_id},
+        "observation": f"{stale_count} sensors reporting delays." if stale_count > 0 else "All sensors online.",
+        "evidence": evidence,
+        "farmer_meaning": "Indicates if hardware needs battery replacement or network check.",
+        "suggested_inspection": "Check RSSI and battery levels in Admin.",
+        "possible_interventions": ["Replace battery", "Reset gateway", "Relocate node"],
+        "confidence": "high"
+    }
+    
+    graph.storage.add_card(f"card-source-health-{farm_id}", now.isoformat(), card["card_type"], card["status"], card)
+    return card

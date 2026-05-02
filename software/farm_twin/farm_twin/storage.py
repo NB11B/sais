@@ -53,6 +53,25 @@ class GraphStorage:
             )
         ''')
         cursor.execute('''
+            CREATE TABLE IF NOT EXISTS soil_observations (
+                id TEXT PRIMARY KEY,
+                farm_id TEXT,
+                paddock_id TEXT,
+                timestamp TEXT,
+                infiltration_mm_hr REAL,
+                payload_json TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS infrastructure_assets (
+                id TEXT PRIMARY KEY,
+                farm_id TEXT,
+                asset_type TEXT,
+                status TEXT,
+                payload_json TEXT
+            )
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS cards (
                 id TEXT PRIMARY KEY, 
                 created_at TEXT, 
@@ -74,6 +93,23 @@ class GraphStorage:
                 ended_at TEXT, 
                 animal_count INTEGER,
                 notes TEXT,
+                payload_json TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS node_registry (
+                id TEXT PRIMARY KEY,
+                status TEXT DEFAULT 'pending',
+                role_template TEXT,
+                farm_id TEXT,
+                field_id TEXT,
+                zone_id TEXT,
+                paddock_id TEXT,
+                asset_id TEXT,
+                first_seen TEXT,
+                last_seen TEXT,
+                capabilities_json TEXT,
+                config_json TEXT,
                 payload_json TEXT
             )
         ''')
@@ -149,6 +185,15 @@ class GraphStorage:
 
     def add_observation(self, obs_id: str, node_id: str, timestamp: str, farm_id: str, field_id: str, zone_id: str, measurement_id: str, value: float, layer: str, payload: dict):
         cursor = self.conn.cursor()
+        
+        # WP19: Check node status for trust/confidence
+        cursor.execute("SELECT status FROM node_registry WHERE id = ?", (node_id,))
+        row = cursor.fetchone()
+        node_status = row[0] if row else "pending"
+        payload["node_trust"] = node_status
+        if node_status != "accepted":
+            payload["confidence"] = "low"
+            
         cursor.execute(
             "INSERT OR REPLACE INTO observations (id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (obs_id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, json.dumps(payload))
@@ -200,6 +245,22 @@ class GraphStorage:
         )
         self.conn.commit()
 
+    def add_soil_observation(self, obs_id: str, farm_id: str, paddock_id: str, timestamp: str, infiltration: float, payload: dict):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO soil_observations (id, farm_id, paddock_id, timestamp, infiltration_mm_hr, payload_json) VALUES (?, ?, ?, ?, ?, ?)",
+            (obs_id, farm_id, paddock_id, timestamp, infiltration, json.dumps(payload))
+        )
+        self.conn.commit()
+
+    def add_infrastructure_asset(self, asset_id: str, farm_id: str, asset_type: str, status: str, payload: dict):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO infrastructure_assets (id, farm_id, asset_type, status, payload_json) VALUES (?, ?, ?, ?, ?)",
+            (asset_id, farm_id, asset_type, status, json.dumps(payload))
+        )
+        self.conn.commit()
+
     def get_livestock_observations(self, paddock_id: str = None, limit: int = 5):
         cursor = self.conn.cursor()
         query = "SELECT payload_json FROM livestock_observations"
@@ -212,6 +273,66 @@ class GraphStorage:
         
         cursor.execute(query, params)
         return [json.loads(row[0]) for row in cursor.fetchall()]
+
+    def update_node_registry(self, node_id: str, status: str = None, role: str = None, farm_id: str = None, field_id: str = None, zone_id: str = None, paddock_id: str = None, asset_id: str = None, first_seen: str = None, last_seen: str = None, capabilities: dict = None, config: dict = None, payload: dict = None):
+        cursor = self.conn.cursor()
+        
+        # Build dynamic update
+        updates = []
+        params = []
+        if status: updates.append("status = ?"); params.append(status)
+        if role: updates.append("role_template = ?"); params.append(role)
+        if farm_id: updates.append("farm_id = ?"); params.append(farm_id)
+        if field_id: updates.append("field_id = ?"); params.append(field_id)
+        if zone_id: updates.append("zone_id = ?"); params.append(zone_id)
+        if paddock_id: updates.append("paddock_id = ?"); params.append(paddock_id)
+        if asset_id: updates.append("asset_id = ?"); params.append(asset_id)
+        if first_seen: updates.append("first_seen = ?"); params.append(first_seen)
+        if last_seen: updates.append("last_seen = ?"); params.append(last_seen)
+        if capabilities: updates.append("capabilities_json = ?"); params.append(json.dumps(capabilities))
+        if config: updates.append("config_json = ?"); params.append(json.dumps(config))
+        if payload: updates.append("payload_json = ?"); params.append(json.dumps(payload))
+        
+        if not updates: return
+        
+        # Check if exists
+        cursor.execute("SELECT id FROM node_registry WHERE id = ?", (node_id,))
+        if not cursor.fetchone():
+            # Initial Insert
+            cols = ["id", "status", "role_template", "farm_id", "field_id", "zone_id", "paddock_id", "asset_id", "first_seen", "last_seen", "capabilities_json", "config_json", "payload_json"]
+            vals = [node_id, status or 'pending', role, farm_id, field_id, zone_id, paddock_id, asset_id, first_seen, last_seen, json.dumps(capabilities or {}), json.dumps(config or {}), json.dumps(payload or {})]
+            placeholders = ",".join(["?" for _ in vals])
+            cursor.execute(f"INSERT INTO node_registry ({','.join(cols)}) VALUES ({placeholders})", vals)
+        else:
+            params.append(node_id)
+            cursor.execute(f"UPDATE node_registry SET {', '.join(updates)} WHERE id = ?", params)
+        
+        self.conn.commit()
+
+    def get_node_registry(self, node_id: str):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM node_registry WHERE id = ?", (node_id,))
+        row = cursor.fetchone()
+        if not row: return None
+        # Return as dict using column names
+        names = [description[0] for description in cursor.description]
+        res = dict(zip(names, row))
+        for key in ['capabilities_json', 'config_json', 'payload_json']:
+            if res.get(key): res[key] = json.loads(res[key])
+        return res
+
+    def get_nodes_by_status(self, status: str):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM node_registry WHERE status = ?", (status,))
+        rows = cursor.fetchall()
+        names = [description[0] for description in cursor.description]
+        results = []
+        for row in rows:
+            res = dict(zip(names, row))
+            for key in ['capabilities_json', 'config_json', 'payload_json']:
+                if res.get(key): res[key] = json.loads(res[key])
+            results.append(res)
+        return results
 
     def update_card_action(self, card_id: str, action_status: str, notes: str, updated_at: str):
         cursor = self.conn.cursor()

@@ -83,7 +83,7 @@ async def get_observations(limit: int = 20):
     finally:
         graph.storage.conn.close()
 
-from schemas import ObservationPayload, PlantObservationPayload
+from schemas import ObservationPayload, PlantObservationPayload, SoilObservationPayload, InfrastructureStatusPayload
 
 @app.get("/health")
 async def health_check():
@@ -120,9 +120,13 @@ async def post_observation(payload: ObservationPayload):
                 # Rainfall also impacts water retention
                 if field_id and zone_id:
                     generate_water_retention_card(graph, farm_id, field_id, zone_id)
-            elif field_id and zone_id:
-                generate_water_retention_card(graph, farm_id, field_id, zone_id)
-                
+        # WP19: Update last_seen in registry
+        graph.storage.update_node_registry(node_id=data["node_id"], last_seen=data["timestamp"])
+        
+        from farm_twin.cards import generate_ranch_health_card, generate_source_health_card
+        generate_source_health_card(graph, farm_id)
+        generate_ranch_health_card(graph, farm_id)
+        
         return {"status": "success", "obs_id": obs_id}
     finally:
         graph.storage.conn.close()
@@ -403,11 +407,95 @@ async def post_plant_observation(payload: PlantObservationPayload):
         graph.add_edge(payload.paddock_id, "PLANT_CHECK", payload.id)
         
         # 4. Trigger Intelligence
-        from farm_twin.cards import generate_forage_balance_card, generate_plant_recovery_card
+        from farm_twin.cards import generate_forage_balance_card, generate_plant_recovery_card, generate_grazing_readiness_card, generate_ranch_health_card
         generate_forage_balance_card(graph, payload.farm_id, payload.paddock_id)
         generate_plant_recovery_card(graph, payload.farm_id, payload.paddock_id)
+        generate_grazing_readiness_card(graph, payload.farm_id, payload.paddock_id)
+        generate_ranch_health_card(graph, payload.farm_id)
         
         return {"status": "success", "id": payload.id}
+    finally:
+        graph.storage.conn.close()
+
+@app.post("/api/soil/observations")
+async def post_soil_observation(payload: SoilObservationPayload):
+    graph = get_graph()
+    try:
+        graph.storage.add_soil_observation(
+            obs_id=payload.id,
+            farm_id=payload.farm_id,
+            paddock_id=payload.paddock_id,
+            timestamp=payload.timestamp,
+            infiltration=payload.infiltration_mm_hr,
+            payload=payload.model_dump()
+        )
+        if payload.paddock_id:
+            graph.add_edge(payload.paddock_id, "SOIL_TEST", payload.id)
+            
+        from farm_twin.cards import generate_soil_function_card, generate_ranch_health_card, generate_plant_recovery_card
+        generate_soil_function_card(graph, payload.farm_id, payload.paddock_id)
+        if payload.paddock_id:
+            generate_plant_recovery_card(graph, payload.farm_id, payload.paddock_id)
+        generate_ranch_health_card(graph, payload.farm_id)
+        
+        return {"status": "success", "id": payload.id}
+    finally:
+        graph.storage.conn.close()
+
+@app.post("/api/infrastructure/status")
+async def post_infrastructure_status(payload: InfrastructureStatusPayload):
+    graph = get_graph()
+    try:
+        graph.storage.add_infrastructure_asset(
+            asset_id=payload.id,
+            farm_id=payload.farm_id,
+            asset_type=payload.asset_type,
+            status=payload.status,
+            payload=payload.model_dump()
+        )
+        
+        # Also update graph node if it exists
+        node = graph.get_node(payload.id)
+        if node:
+            node["payload"]["status"] = payload.status
+            # Use the 'type' field from storage.get_node return
+            label = node.get("type", "InfrastructureAsset")
+            graph.storage.add_node(payload.id, label, node["payload"])
+        
+        from farm_twin.cards import generate_infrastructure_alert_card, generate_ranch_health_card
+        generate_infrastructure_alert_card(graph, payload.farm_id)
+        generate_ranch_health_card(graph, payload.farm_id)
+        
+        return {"status": "success", "id": payload.id}
+    finally:
+        graph.storage.conn.close()
+
+@app.post("/api/infrastructure/asset")
+async def post_infrastructure_asset(payload: Dict[str, Any]):
+    from farm_twin.models import InfrastructureAsset
+    graph = get_graph()
+    try:
+        asset = InfrastructureAsset(
+            id=payload["id"],
+            farm_id=payload["farm_id"],
+            asset_type=payload["asset_type"],
+            name=payload.get("name", payload["id"]),
+            status=payload.get("status", "unknown"),
+            location_geojson=payload.get("location_geojson"),
+            notes=payload.get("notes")
+        )
+        graph.add_node(asset)
+        
+        # Also add to infrastructure_assets table for alert tracking
+        graph.storage.add_infrastructure_asset(
+            asset_id=asset.id,
+            farm_id=asset.farm_id,
+            asset_type=asset.asset_type,
+            status=asset.status,
+            payload=payload
+        )
+        
+        return {"status": "success", "id": asset.id}
     finally:
         graph.storage.conn.close()
 
@@ -427,6 +515,124 @@ async def post_water_asset(payload: Dict[str, Any]):
         return {"status": "success", "id": asset.id}
     finally:
         graph.storage.conn.close()
+
+# --- WP19 Node Provisioning API ---
+
+@app.post("/api/nodes/hello")
+async def node_hello(payload: Dict[str, Any]):
+    """
+    Heartbeat/Discovery endpoint for hardware nodes.
+    Registers unknown nodes as 'pending'.
+    """
+    node_id = payload.get("id")
+    if not node_id:
+        raise HTTPException(status_code=400, detail="Missing node id")
+    
+    graph = get_graph()
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        existing = graph.storage.get_node_registry(node_id)
+        
+        if not existing:
+            graph.storage.update_node_registry(
+                node_id=node_id,
+                status="pending",
+                first_seen=now,
+                last_seen=now,
+                capabilities=payload.get("capabilities", {}),
+                payload=payload
+            )
+        else:
+            graph.storage.update_node_registry(
+                node_id=node_id,
+                last_seen=now,
+                payload=payload
+            )
+        
+        from farm_twin.cards import generate_source_health_card, generate_ranch_health_card
+        farm_id = payload.get("farm_id", "local")
+        generate_source_health_card(graph, farm_id)
+        generate_ranch_health_card(graph, farm_id)
+        
+        return {"status": "success", "node_id": node_id}
+    finally:
+        graph.storage.conn.close()
+
+@app.get("/api/nodes/pending")
+async def get_pending_nodes():
+    graph = get_graph()
+    try:
+        nodes = graph.storage.get_nodes_by_status("pending")
+        return {"nodes": nodes}
+    finally:
+        graph.storage.conn.close()
+
+@app.get("/api/nodes/active")
+async def get_active_nodes():
+    graph = get_graph()
+    try:
+        nodes = graph.storage.get_nodes_by_status("accepted")
+        return {"nodes": nodes}
+    finally:
+        graph.storage.conn.close()
+
+@app.post("/api/nodes/{node_id}/accept")
+async def accept_node(node_id: str):
+    graph = get_graph()
+    try:
+        graph.storage.update_node_registry(node_id, status="accepted")
+        return {"status": "success", "node_id": node_id}
+    finally:
+        graph.storage.conn.close()
+
+@app.post("/api/nodes/{node_id}/reject")
+async def reject_node(node_id: str):
+    graph = get_graph()
+    try:
+        graph.storage.update_node_registry(node_id, status="rejected")
+        return {"status": "success", "node_id": node_id}
+    finally:
+        graph.storage.conn.close()
+
+@app.put("/api/nodes/{node_id}/assignment")
+async def update_node_assignment(node_id: str, data: Dict[str, Any]):
+    graph = get_graph()
+    try:
+        graph.storage.update_node_registry(
+            node_id=node_id,
+            role=data.get("role"),
+            farm_id=data.get("farm_id"),
+            field_id=data.get("field_id"),
+            zone_id=data.get("zone_id"),
+            paddock_id=data.get("paddock_id"),
+            asset_id=data.get("asset_id"),
+            config=data.get("config", {})
+        )
+        
+        # WP19: Also update the graph node to reflect assignment
+        reg = graph.storage.get_node_registry(node_id)
+        if reg and reg["status"] == "accepted":
+            from farm_twin.models import SensorNode
+            sensor = SensorNode(
+                id=node_id,
+                farm_id=reg.get("farm_id", "local"),
+                node_type=reg.get("role_template", "sensor"),
+                field_id=reg.get("field_id"),
+                zone_id=reg.get("zone_id"),
+                location=data.get("location")
+            )
+            graph.add_node(sensor)
+            if sensor.zone_id:
+                graph.add_edge(node_id, "DEPLOYED_IN", sensor.zone_id)
+        
+        return {"status": "success", "node_id": node_id}
+    finally:
+        graph.storage.conn.close()
+
+@app.get("/api/nodes/roles")
+async def get_node_roles():
+    from farm_twin.provisioning import get_all_roles
+    return {"roles": get_all_roles()}
 
 if __name__ == "__main__":
     import uvicorn
