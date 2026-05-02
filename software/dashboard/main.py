@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -162,7 +162,11 @@ async def put_farm_profile(payload: FarmPayload):
 @app.post("/api/farm/fields")
 @app.put("/api/farm/fields/{field_id}")
 async def post_farm_field(payload: FieldPayload, field_id: str = None):
+    if field_id and field_id != payload.id:
+        raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
+    if not graph.get_node(payload.farm_id):
+        raise HTTPException(status_code=400, detail="Parent farm_id does not exist")
     field = Field(**payload.model_dump())
     graph.add_node(field)
     graph.add_edge(field.farm_id, "CONTAINS", field.id)
@@ -172,7 +176,11 @@ async def post_farm_field(payload: FieldPayload, field_id: str = None):
 @app.post("/api/farm/zones")
 @app.put("/api/farm/zones/{zone_id}")
 async def post_farm_zone(payload: ZonePayload, zone_id: str = None):
+    if zone_id and zone_id != payload.id:
+        raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
+    if not graph.get_node(payload.field_id):
+        raise HTTPException(status_code=400, detail="Parent field_id does not exist")
     zone = ManagementZone(**payload.model_dump())
     graph.add_node(zone)
     graph.add_edge(zone.field_id, "CONTAINS", zone.id)
@@ -182,7 +190,11 @@ async def post_farm_zone(payload: ZonePayload, zone_id: str = None):
 @app.post("/api/farm/paddocks")
 @app.put("/api/farm/paddocks/{paddock_id}")
 async def post_farm_paddock(payload: PaddockPayload, paddock_id: str = None):
+    if paddock_id and paddock_id != payload.id:
+        raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
+    if not graph.get_node(payload.field_id):
+        raise HTTPException(status_code=400, detail="Parent field_id does not exist")
     paddock = Paddock(**payload.model_dump())
     graph.add_node(paddock)
     graph.add_edge(paddock.field_id, "CONTAINS", paddock.id)
@@ -192,7 +204,14 @@ async def post_farm_paddock(payload: PaddockPayload, paddock_id: str = None):
 @app.post("/api/farm/sensor-nodes")
 @app.put("/api/farm/sensor-nodes/{node_id}")
 async def post_sensor_node(payload: SensorNodePayload, node_id: str = None):
+    if node_id and node_id != payload.id:
+        raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
+    if payload.zone_id and not graph.get_node(payload.zone_id):
+        raise HTTPException(status_code=400, detail="zone_id does not exist")
+    if payload.field_id and not graph.get_node(payload.field_id):
+        raise HTTPException(status_code=400, detail="field_id does not exist")
+        
     sensor = SensorNode(**payload.model_dump())
     graph.add_node(sensor)
     if sensor.zone_id:

@@ -97,16 +97,33 @@ function setupForms() {
         await submitApi('/api/farm/zones', 'POST', payload);
     });
 
+    document.getElementById('paddock-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            id: document.getElementById('paddock_id').value,
+            field_id: document.getElementById('paddock_field_id').value,
+            name: document.getElementById('paddock_name').value,
+            boundary_geojson: parseGeoJSON(document.getElementById('paddock_geojson').value)
+        };
+        await submitApi('/api/farm/paddocks', 'POST', payload);
+    });
+
     document.getElementById('sensor-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const target_id = document.getElementById('sensor_target_id').value;
+        let loc = null;
+        const lat = document.getElementById('sensor_lat').value;
+        const lng = document.getElementById('sensor_lng').value;
+        if (lat && lng) {
+            loc = { lat: parseFloat(lat), lng: parseFloat(lng) };
+        }
         const payload = {
             id: document.getElementById('sensor_id').value,
             farm_id: farmId,
             node_type: document.getElementById('sensor_type').value,
             zone_id: target_id.startsWith('zone-') ? target_id : null,
             field_id: target_id.startsWith('field-') ? target_id : null,
-            location: null
+            location: loc
         };
         await submitApi('/api/farm/sensor-nodes', 'POST', payload);
     });

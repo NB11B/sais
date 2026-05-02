@@ -10,8 +10,8 @@
     <link rel="stylesheet" href="/static/style.css">
     
     <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css"/>
+    <script src="/static/vendor/leaflet/leaflet.js"></script>
 
     <style>
         .admin-container {
@@ -176,7 +176,34 @@
                 </div>
 
                 <div class="wizard-step">
-                    <h3>4. Sensor Placement</h3>
+                    <h3>4. Add Paddock</h3>
+                    <form id="paddock-form">
+                        <div class="form-group">
+                            <label>Paddock ID</label>
+                            <input type="text" id="paddock_id" class="form-control" required placeholder="e.g., paddock-1">
+                        </div>
+                        <div class="form-group">
+                            <label>Parent Field ID</label>
+                            <input type="text" id="paddock_field_id" class="form-control" required placeholder="e.g., field-a">
+                        </div>
+                        <div class="form-group">
+                            <label>Paddock Name</label>
+                            <input type="text" id="paddock_name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Rest target days (Optional)</label>
+                            <input type="number" id="paddock_rest" class="form-control" placeholder="e.g. 45">
+                        </div>
+                        <div class="form-group">
+                            <label>Boundary GeoJSON (Optional)</label>
+                            <textarea id="paddock_geojson" class="form-control" placeholder='{"type": "Polygon", ...}'></textarea>
+                        </div>
+                        <button type="submit" class="btn">Add Paddock</button>
+                    </form>
+                </div>
+
+                <div class="wizard-step">
+                    <h3>5. Sensor Placement</h3>
                     <form id="sensor-form">
                         <div class="form-group">
                             <label>Sensor Node ID</label>
@@ -189,6 +216,14 @@
                         <div class="form-group">
                             <label>Node Type</label>
                             <input type="text" id="sensor_type" class="form-control" required value="sensor">
+                        </div>
+                        <div class="form-group">
+                            <label>Latitude (Optional)</label>
+                            <input type="number" step="any" id="sensor_lat" class="form-control" placeholder="e.g. 39.8283">
+                        </div>
+                        <div class="form-group">
+                            <label>Longitude (Optional)</label>
+                            <input type="number" step="any" id="sensor_lng" class="form-control" placeholder="e.g. -98.5795">
                         </div>
                         <button type="submit" class="btn">Register Sensor</button>
                     </form>
