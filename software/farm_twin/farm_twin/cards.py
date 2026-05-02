@@ -46,3 +46,46 @@ def generate_water_retention_card(graph: FarmGraph, farm_id: str, field_id: str,
     )
     
     return card
+
+def generate_weather_context_card(graph: FarmGraph, farm_id: str, field_id: str, zone_id: str):
+    """
+    Generates a card summarizing weather conditions for the farm.
+    """
+    from .queries import get_zone_weather_summary
+    
+    summary = get_zone_weather_summary(graph, farm_id, zone_id)
+    
+    card = {
+        "card_type": "WeatherContextCard",
+        "title": "Live Weather Context",
+        "status": summary["status"],
+        "location": {
+            "farm_id": farm_id,
+            "field_id": field_id,
+            "zone_id": zone_id
+        },
+        "observation": summary["summary"],
+        "context": summary["evidence"],
+        "farmer_meaning": "Current atmospheric conditions impacting soil dynamics.",
+        "suggested_inspection": "Monitor runoff if rainfall persists." if summary["rainfall_mm"] > 0 else "No immediate atmospheric action needed.",
+        "possible_interventions": [
+            "Check drainage channels",
+            "Adjust irrigation schedule"
+        ],
+        "evidence": summary["evidence"],
+        "confidence": "high"
+    }
+    
+    now = datetime.now(timezone.utc)
+    card_id = f"card-weather-{farm_id}"
+    
+    graph.storage.add_card(
+        card_id=card_id,
+        created_at=now.isoformat(),
+        card_type=card["card_type"],
+        status=card["status"],
+        payload=card
+    )
+    
+    return card
+

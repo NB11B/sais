@@ -1,0 +1,38 @@
+# SAIS Source Registry
+# Defines all trusted input classes for the Farm Twin
+
+sources:
+  - id: direct_sensor
+    name: Direct Hardware Sensor
+    description: Physical telemetry from ESP32 or edge nodes
+    trust_level: high
+
+  - id: manual_observation
+    name: Manual Farmer Observation
+    description: Human-entered data from the field
+    trust_level: medium
+
+  - id: open_weather
+    name: OpenWeather API
+    description: External weather telemetry (Temperature, Rainfall, etc.)
+    trust_level: high
+
+  - id: open_geospatial
+    name: Open Geospatial Data
+    description: Public GIS layers (DEM, Soil Maps)
+    trust_level: high
+
+  - id: derived
+    name: Derived Intelligence
+    description: Data produced by SAIS intelligence rules (Risk Layers)
+    trust_level: high
+
+  - id: proxy
+    name: Proxy Sensor
+    description: Estimated value from nearby sensors
+    trust_level: low
+
+  - id: lab_import
+    name: Lab Import
+    description: CSV or PDF import from soil/water labs
+    trust_level: high

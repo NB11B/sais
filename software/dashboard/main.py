@@ -83,12 +83,23 @@ async def post_observation(payload: ObservationPayload):
         # Trigger intelligence rule if it relates to water/moisture
         farm_id = data.get("farm_id")
         zone_id = data.get("zone_id")
+        layer = data.get("layer")
         
-        if farm_id and zone_id:
-            zone_node = graph.get_node(zone_id)
-            field_id = zone_node["payload"].get("field_id") if zone_node else None
+        if farm_id:
+            # For cards that need a zone/field, we try to resolve them.
+            # Weather cards are often farm-wide but we'll link to a zone if available for the location object.
+            field_id = data.get("field_id")
+            if zone_id and not field_id:
+                zone_node = graph.get_node(zone_id)
+                field_id = zone_node["payload"].get("field_id") if zone_node else None
             
-            if field_id:
+            if layer == "Weather":
+                from farm_twin.cards import generate_weather_context_card
+                generate_weather_context_card(graph, farm_id, field_id, zone_id)
+                # Rainfall also impacts water retention
+                if field_id and zone_id:
+                    generate_water_retention_card(graph, farm_id, field_id, zone_id)
+            elif field_id and zone_id:
                 generate_water_retention_card(graph, farm_id, field_id, zone_id)
                 
         return {"status": "success", "obs_id": obs_id}
@@ -139,6 +150,16 @@ async def admin_page(request: Request):
 
 from schemas import FarmPayload, FieldPayload, ZonePayload, PaddockPayload, SensorNodePayload
 from farm_twin.models import Farm, Field, ManagementZone, Paddock, SensorNode
+
+@app.get("/api/sources")
+async def get_sources():
+    from farm_twin.source_registry import registry
+    return {"sources": registry.list_sources()}
+
+@app.get("/api/layers")
+async def get_layers():
+    from farm_twin.layer_registry import registry
+    return {"layers": registry.list_layers()}
 
 @app.get("/api/farm/profile")
 async def get_farm_profile():

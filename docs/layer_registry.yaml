@@ -1,0 +1,58 @@
+# SAIS Layer Registry
+# Defines all geospatial and logical overlays for the C2 Dashboard
+
+layers:
+  - id: farm_boundary
+    name: Farm Boundary
+    category: infrastructure
+    default_color: "#10b981" # Green
+
+  - id: fields
+    name: Fields
+    category: infrastructure
+    default_color: "#3b82f6" # Blue
+
+  - id: management_zones
+    name: Management Zones
+    category: infrastructure
+    default_color: "#06b6d4" # Cyan
+
+  - id: paddocks
+    name: Paddocks
+    category: infrastructure
+    default_color: "#f59e0b" # Amber
+
+  - id: sensor_nodes
+    name: Sensor Nodes
+    category: hardware
+    default_color: "#ef4444" # Red
+
+  - id: soil_moisture
+    name: Soil Moisture
+    category: telemetry
+    default_color: "#8b5cf6" # Violet
+
+  - id: rainfall
+    name: Rainfall
+    category: weather
+    default_color: "#0ea5e9" # Sky Blue
+
+  - id: weather
+    name: General Weather
+    category: weather
+    default_color: "#f97316" # Orange
+
+  - id: runoff_risk
+    name: Runoff Risk
+    category: intelligence
+    default_color: "#dc2626" # Red-600
+
+  - id: flow_accumulation
+    name: Flow Accumulation
+    category: geospatial
+    default_color: "#1d4ed8" # Blue-700
+
+  - id: manual_observations
+    name: Manual Observations
+    category: telemetry
+    default_color: "#eab308" # Yellow

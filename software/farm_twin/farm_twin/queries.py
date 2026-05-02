@@ -46,6 +46,19 @@ def get_zone_water_risk_summary(graph: FarmGraph, farm_id: str, zone_id: str):
             evidence.append(f"soil moisture observation is non-numeric: {raw_val}")
     else:
         evidence.append("no soil moisture observations found for zone")
+
+    # 2b. Check for recent rainfall (last 24h context)
+    cursor.execute("""
+        SELECT payload_json FROM observations
+        WHERE farm_id = ? AND measurement_id = 'weather.rainfall.hourly'
+        ORDER BY timestamp DESC LIMIT 1
+    """, (farm_id,))
+    rain_row = cursor.fetchone()
+    if rain_row:
+        rain_obs = json.loads(rain_row[0])
+        val = rain_obs.get("value", 0)
+        if val > 0:
+            evidence.append(f"recent rainfall detected: {val}mm")
     
     # 3. Analyze status with explicit boundaries
     status = "ok"
@@ -88,3 +101,57 @@ def get_zone_water_risk_summary(graph: FarmGraph, farm_id: str, zone_id: str):
         "suggested_inspection": "Check for runoff, crusting, bare soil, or compaction." if "watch" in status else "Ensure sensors are online and spatial layers are ingested.",
         "confidence": "medium" if is_valid_moisture else "low"
     }
+
+def get_zone_weather_summary(graph: FarmGraph, farm_id: str, zone_id: str):
+    """
+    Evaluates latest weather context for a given zone.
+    """
+    evidence = []
+    cursor = graph.storage.conn.cursor()
+    
+    # Query latest weather observations (Rainfall, Temp, Humidity, Wind)
+    # We look for nodes with layer='Weather'
+    query = """
+        SELECT payload_json FROM observations
+        WHERE farm_id = ? AND layer = 'Weather'
+        ORDER BY timestamp DESC LIMIT 5
+    """
+    cursor.execute(query, (farm_id,))
+    rows = cursor.fetchall()
+    
+    weather_data = {}
+    for row in rows:
+        obs = json.loads(row[0])
+        m_id = obs.get("measurement_id")
+        if m_id not in weather_data:
+            weather_data[m_id] = obs
+            evidence.append(f"latest {m_id}: {obs.get('value')} {obs.get('unit', '')}")
+            
+    if not weather_data:
+        return {
+            "status": "no_data",
+            "evidence": ["no recent weather telemetry found"],
+            "summary": "Weather station offline or not yet configured."
+        }
+        
+    # Simple logic for WeatherContextCard
+    # Example: rainfall > 0 in last hour?
+    rainfall = weather_data.get("weather.rainfall.hourly", {}).get("value", 0)
+    temp = weather_data.get("weather.air_temperature", {}).get("value")
+    
+    status = "ok"
+    if rainfall > 10: status = "action" # Heavy rain
+    elif rainfall > 0: status = "ok_with_warning" # Rain detected
+    
+    summary_text = "Standard conditions."
+    if rainfall > 0:
+        summary_text = f"Rainfall detected ({rainfall}mm). Soil moisture expected to rise."
+        
+    return {
+        "status": status,
+        "evidence": evidence,
+        "summary": summary_text,
+        "rainfall_mm": rainfall,
+        "temp_c": temp
+    }
+

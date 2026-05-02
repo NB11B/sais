@@ -32,6 +32,7 @@ class GraphStorage:
                 field_id TEXT, 
                 zone_id TEXT, 
                 measurement_id TEXT, 
+                layer TEXT,
                 payload_json TEXT
             )
         ''')
@@ -62,11 +63,11 @@ class GraphStorage:
         )
         self.conn.commit()
 
-    def add_observation(self, obs_id: str, timestamp: str, farm_id: str, field_id: str, zone_id: str, measurement_id: str, payload: dict):
+    def add_observation(self, obs_id: str, timestamp: str, farm_id: str, field_id: str, zone_id: str, measurement_id: str, layer: str, payload: dict):
         cursor = self.conn.cursor()
         cursor.execute(
-            "INSERT OR REPLACE INTO observations (id, timestamp, farm_id, field_id, zone_id, measurement_id, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (obs_id, timestamp, farm_id, field_id, zone_id, measurement_id, json.dumps(payload))
+            "INSERT OR REPLACE INTO observations (id, timestamp, farm_id, field_id, zone_id, measurement_id, layer, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (obs_id, timestamp, farm_id, field_id, zone_id, measurement_id, layer, json.dumps(payload))
         )
         self.conn.commit()
 
