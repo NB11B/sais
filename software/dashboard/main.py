@@ -2,6 +2,7 @@ import os
 import sys
 import json
 from datetime import datetime, timezone
+from typing import Dict, Any
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -322,7 +323,17 @@ async def post_grazing_event(payload: GrazingEventPayload):
 async def post_livestock_observation(payload: LivestockObservationPayload):
     graph = get_graph()
     try:
-        # 1. Add to Storage
+        # 1. Validation
+        if not graph.get_node(payload.paddock_id):
+            raise HTTPException(status_code=400, detail=f"Paddock {payload.paddock_id} does not exist")
+        
+        if payload.bcs is not None and (payload.bcs < 1 or payload.bcs > 9):
+            raise HTTPException(status_code=400, detail="BCS must be between 1 and 9")
+            
+        if payload.manure_score is not None and (payload.manure_score < 1 or payload.manure_score > 5):
+            raise HTTPException(status_code=400, detail="Manure score must be between 1 and 5")
+
+        # 2. Add to Storage
         graph.storage.add_livestock_observation(
             obs_id=payload.id,
             farm_id=payload.farm_id,
@@ -333,7 +344,10 @@ async def post_livestock_observation(payload: LivestockObservationPayload):
             payload=payload.model_dump()
         )
         
-        # 2. Trigger Intelligence
+        # 3. Create Graph Link
+        graph.add_edge(payload.paddock_id, "LIVESTOCK_CHECK", payload.id)
+        
+        # 4. Trigger Intelligence
         from farm_twin.cards import generate_livestock_condition_card, generate_heat_stress_card
         generate_livestock_condition_card(graph, payload.farm_id, payload.paddock_id)
         generate_heat_stress_card(graph, payload.farm_id, payload.paddock_id)
@@ -361,6 +375,23 @@ async def post_sensor_node(payload: SensorNodePayload, node_id: str = None):
         elif sensor.field_id:
             graph.add_edge(sensor.id, "DEPLOYED_IN", sensor.field_id)
         return {"status": "success", "id": sensor.id}
+    finally:
+        graph.storage.conn.close()
+
+@app.post("/api/infrastructure/water")
+async def post_water_asset(payload: Dict[str, Any]):
+    from farm_twin.models import WaterAsset
+    graph = get_graph()
+    try:
+        asset = WaterAsset(
+            id=payload["id"],
+            farm_id=payload["farm_id"],
+            asset_type=payload["asset_type"],
+            name=payload["name"],
+            location=payload.get("location")
+        )
+        graph.add_node(asset)
+        return {"status": "success", "id": asset.id}
     finally:
         graph.storage.conn.close()
 

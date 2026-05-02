@@ -18,6 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const lsForm = document.getElementById('livestock-form');
     const lsPaddockSelect = document.getElementById('ls_paddock_id');
 
+    const waterModal = document.getElementById('water-modal');
+    const openWaterBtn = document.getElementById('open-water-btn');
+    const waterForm = document.getElementById('water-form');
+
     // Modal Control
     if (openLsBtn) {
         openLsBtn.onclick = (e) => {
@@ -27,13 +31,60 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    if (closeLsBtn) {
-        closeLsBtn.onclick = () => lsModal.style.display = 'none';
+    if (openWaterBtn) {
+        openWaterBtn.onclick = (e) => {
+            e.preventDefault();
+            waterModal.style.display = 'block';
+        };
     }
+
+    // Generic close for all modals
+    document.querySelectorAll('.close-modal').forEach(btn => {
+        btn.onclick = () => {
+            lsModal.style.display = 'none';
+            waterModal.style.display = 'none';
+        };
+    });
 
     window.onclick = (event) => {
         if (event.target == lsModal) lsModal.style.display = 'none';
+        if (event.target == waterModal) waterModal.style.display = 'none';
     };
+
+    if (waterForm) {
+        waterForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const assetId = document.getElementById('water_asset_id').value;
+            const level = parseFloat(document.getElementById('water_level').value);
+            
+            // Post as a standard observation for PFKR-1
+            const payload = {
+                schema: "sais.observation.v1",
+                node_id: assetId,
+                farm_id: "local",
+                timestamp: new Date().toISOString(),
+                measurement_id: "water.tank.level_percent",
+                layer: "Water Infrastructure",
+                value: level,
+                unit: "%",
+                source: { id: "manual_observation" }
+            };
+
+            try {
+                const res = await fetch('/api/observations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    waterModal.style.display = 'none';
+                    waterForm.reset();
+                    fetchCards();
+                    fetchObservations();
+                }
+            } catch (e) { console.error(e); }
+        };
+    }
 
     async function populatePaddocks() {
         try {

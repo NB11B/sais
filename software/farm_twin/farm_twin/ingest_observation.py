@@ -101,9 +101,9 @@ def ingest_sensor_observation_payload(graph: FarmGraph, data: dict):
     
     # Store in dedicated observation table for easy timeseries querying
     graph.storage.add_observation(
-        obs.id, obs.timestamp, obs.farm_id, 
+        obs.id, obs.node_id, obs.timestamp, obs.farm_id, 
         data.get("field_id"), data.get("zone_id"), 
-        obs.measurement_id, obs.layer, obs.__dict__
+        obs.measurement_id, obs.value, obs.layer, obs.__dict__
     )
     
     # Also link it in the graph for traversal

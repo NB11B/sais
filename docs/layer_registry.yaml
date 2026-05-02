@@ -71,3 +71,10 @@ layers:
     category: telemetry
     default_color: "#eab308" # Yellow
     knowledge_requirements: ["PFKR-8"]
+
+  - id: water_infrastructure
+    name: Water Infrastructure
+    category: infrastructure
+    default_color: "#0284c7" # Sky Blue 600
+    knowledge_requirements: ["PFKR-1", "PFKR-6"]
+    operator_meaning: "Tanks, troughs, pumps, and valves."

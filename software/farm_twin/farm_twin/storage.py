@@ -28,11 +28,13 @@ class GraphStorage:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS observations (
                 id TEXT PRIMARY KEY, 
+                node_id TEXT,
                 timestamp TEXT, 
                 farm_id TEXT, 
                 field_id TEXT, 
                 zone_id TEXT, 
                 measurement_id TEXT, 
+                value REAL,
                 layer TEXT,
                 payload_json TEXT
             )
@@ -86,14 +88,25 @@ class GraphStorage:
             cursor.execute("ALTER TABLE observations ADD COLUMN layer TEXT")
             self.conn.commit()
             
+        if "node_id" not in cols:
+            cursor.execute("ALTER TABLE observations ADD COLUMN node_id TEXT")
+            self.conn.commit()
+
+        if "value" not in cols:
+            cursor.execute("ALTER TABLE observations ADD COLUMN value REAL")
+            self.conn.commit()
+            
             # 2. Backfill from payload_json
-            cursor.execute("SELECT id, payload_json FROM observations WHERE layer IS NULL")
+            cursor.execute("SELECT id, payload_json FROM observations")
             rows = cursor.fetchall()
             for row in rows:
                 obs_id = row[0]
                 payload = json.loads(row[1]) if row[1] else {}
                 layer = payload.get("layer", "Unknown")
-                cursor.execute("UPDATE observations SET layer = ? WHERE id = ?", (layer, obs_id))
+                node_id = payload.get("node_id")
+                value = payload.get("value")
+                cursor.execute("UPDATE observations SET layer = ?, node_id = ?, value = ? WHERE id = ?", 
+                             (layer, node_id, value, obs_id))
             self.conn.commit()
 
         # 3. Check for card action columns
@@ -121,11 +134,11 @@ class GraphStorage:
         )
         self.conn.commit()
 
-    def add_observation(self, obs_id: str, timestamp: str, farm_id: str, field_id: str, zone_id: str, measurement_id: str, layer: str, payload: dict):
+    def add_observation(self, obs_id: str, node_id: str, timestamp: str, farm_id: str, field_id: str, zone_id: str, measurement_id: str, value: float, layer: str, payload: dict):
         cursor = self.conn.cursor()
         cursor.execute(
-            "INSERT OR REPLACE INTO observations (id, timestamp, farm_id, field_id, zone_id, measurement_id, layer, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (obs_id, timestamp, farm_id, field_id, zone_id, measurement_id, layer, json.dumps(payload))
+            "INSERT OR REPLACE INTO observations (id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (obs_id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, json.dumps(payload))
         )
         self.conn.commit()
 

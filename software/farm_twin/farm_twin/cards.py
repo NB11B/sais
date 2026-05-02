@@ -191,3 +191,62 @@ def generate_heat_stress_card(graph: FarmGraph, farm_id: str, paddock_id: str):
     graph.storage.add_card(f"card-heat-{farm_id}", now.isoformat(), card["card_type"], card["status"], card)
     return card
 
+def generate_water_system_card(graph: FarmGraph, farm_id: str):
+    """
+    Generates a card for the overall ranch hydraulic status.
+    PFKR-1: Water Status and Movement
+    """
+    from .queries import get_water_system_summary
+    summary = get_water_system_summary(graph, farm_id)
+    
+    card = {
+        "card_type": "WaterSystemCard",
+        "pfkr_id": "PFKR-1",
+        "pfkr_domain": "Water Status and Movement",
+        "title": "Ranch Hydraulic Picture",
+        "status": summary["status"],
+        "location": {"farm_id": farm_id},
+        "observation": f"System status is {summary['status'].upper()}.",
+        "context": summary["evidence"],
+        "farmer_meaning": "Tracks tank levels and pump states across the farm.",
+        "suggested_inspection": "Check primary storage tank." if summary["status"] != "ok" else "Standard water loop check.",
+        "possible_interventions": ["Check pump power", "Inspect for leaks", "Manually verify tank"],
+        "evidence": summary["evidence"],
+        "confidence": "high" if summary["status"] != "insufficient_data" else "low"
+    }
+    
+    now = datetime.now(timezone.utc)
+    graph.storage.add_card(f"card-water-{farm_id}", now.isoformat(), card["card_type"], card["status"], card)
+    return card
+
+def generate_water_source_health_card(graph: FarmGraph, farm_id: str):
+    """
+    Checks for stale sensors on critical water assets.
+    PFKR-8: Source Health and Confidence
+    """
+    from .queries import get_source_health
+    # Check the primary tank sensor
+    summary = get_source_health(graph, farm_id, 'water.tank.level_percent')
+    
+    if summary["status"] == "ok": return None # Don't generate if healthy
+    
+    card = {
+        "card_type": "WaterSourceHealthCard",
+        "pfkr_id": "PFKR-8",
+        "pfkr_domain": "Source Health and Confidence",
+        "title": "Water Sensor Alert",
+        "status": summary["status"],
+        "location": {"farm_id": farm_id},
+        "observation": f"Water sensor is {summary['status'].replace('_', ' ')}.",
+        "context": summary["evidence"],
+        "farmer_meaning": "Critical hydraulic sensor has stopped reporting or data is stale.",
+        "suggested_inspection": "Verify battery and connectivity of tank sensor.",
+        "possible_interventions": ["Power cycle sensor node", "Check gateway signal"],
+        "evidence": summary["evidence"],
+        "confidence": "high"
+    }
+    
+    now = datetime.now(timezone.utc)
+    graph.storage.add_card(f"card-source-water-{farm_id}", now.isoformat(), card["card_type"], card["status"], card)
+    return card
+

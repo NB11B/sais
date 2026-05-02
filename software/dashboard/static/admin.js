@@ -1,5 +1,6 @@
 let map;
 let farmId = "local"; // Default from setup
+let paddockToFieldMap = {}; // Dynamic map for grazing resolution
 
 document.addEventListener('DOMContentLoaded', async () => {
     map = L.map('admin-map').setView([39.8283, -98.5795], 4);
@@ -49,15 +50,42 @@ async function loadMapData() {
             map.fitBounds(group.getBounds(), { padding: [50, 50] });
         }
 
+        // Water Asset Form
+        const waterAssetForm = document.getElementById('water-asset-form');
+        if (waterAssetForm) {
+            waterAssetForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const payload = {
+                    id: document.getElementById('wa_id').value,
+                    farm_id: farmId,
+                    asset_type: document.getElementById('wa_type').value,
+                    name: document.getElementById('wa_name').value,
+                    location: {
+                        lat: parseFloat(document.getElementById('wa_lat').value),
+                        lng: parseFloat(document.getElementById('wa_lng').value)
+                    }
+                };
+                await submitApi('/api/infrastructure/water', 'POST', payload);
+                waterAssetForm.reset();
+            };
+        }
+
         // Populate Paddock Dropdown for Grazing Form
         const paddockSelect = document.getElementById('grazing_paddock_id');
         if (paddockSelect) {
             paddockSelect.innerHTML = '<option value="">Select Paddock...</option>';
+            paddockToFieldMap = {}; // Reset
             data.nodes.filter(n => n.labels.includes("Paddock")).forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id;
                 opt.textContent = p.name || p.id;
                 paddockSelect.appendChild(opt);
+                
+                // Track parent field (via edges)
+                const edge = data.edges.find(e => e.target === p.id && e.type === "CONTAINS");
+                if (edge) {
+                    paddockToFieldMap[p.id] = edge.source;
+                }
             });
         }
 
@@ -128,6 +156,22 @@ function setupForms() {
         await submitApi('/api/farm/paddocks', 'POST', payload);
     });
 
+    document.getElementById('water-asset-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            id: document.getElementById('wa_id').value,
+            farm_id: farmId,
+            asset_type: document.getElementById('wa_type').value,
+            name: document.getElementById('wa_name').value,
+            location: {
+                lat: parseFloat(document.getElementById('wa_lat').value),
+                lng: parseFloat(document.getElementById('wa_lng').value)
+            }
+        };
+        await submitApi('/api/infrastructure/water', 'POST', payload);
+        e.target.reset();
+    });
+
     document.getElementById('sensor-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const target_id = document.getElementById('sensor_target_id').value;
@@ -155,7 +199,7 @@ function setupForms() {
             schema: "sais.grazing_event.v1",
             event_id: `graze-${paddockId}-${Date.now()}`,
             farm_id: farmId,
-            field_id: "field-a", // Simplified for now
+            field_id: paddockToFieldMap[paddockId] || "field-a", // Dynamic lookup
             paddock_id: paddockId,
             started_at: document.getElementById('grazing_start').value,
             animal_count: parseInt(document.getElementById('grazing_count').value),

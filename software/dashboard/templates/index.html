@@ -88,6 +88,9 @@
             <a href="#" class="mobile-nav-link action-link" id="open-livestock-btn">
                 <span>Livestock</span>
             </a>
+            <a href="#" class="mobile-nav-link action-link" id="open-water-btn" style="background: var(--status-ok);">
+                <span>Water</span>
+            </a>
         </nav>
     </div>
 
@@ -118,6 +121,31 @@
                     <textarea id="ls_notes" class="form-control"></textarea>
                 </div>
                 <button type="submit" class="btn">Record Check</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Water Check Modal -->
+    <div id="water-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Manual Water Check</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <form id="water-form">
+                <div class="form-group">
+                    <label>Tank / Trough ID</label>
+                    <input type="text" id="water_asset_id" class="form-control" placeholder="e.g. tank-1" required>
+                </div>
+                <div class="form-group">
+                    <label>Level (%)</label>
+                    <input type="number" id="water_level" class="form-control" placeholder="0-100" required>
+                </div>
+                <div class="form-group">
+                    <label>Condition Notes</label>
+                    <textarea id="water_notes" class="form-control" placeholder="Cleanliness, leaks, etc."></textarea>
+                </div>
+                <button type="submit" class="btn" style="background: var(--status-ok); border-color: var(--status-ok);">Record Water Status</button>
             </form>
         </div>
     </div>

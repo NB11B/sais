@@ -230,7 +230,39 @@
                 </div>
 
                 <div class="wizard-step">
-                    <h3>6. Log Grazing Event</h3>
+                    <h3>6. Water Infrastructure</h3>
+                    <form id="water-asset-form">
+                        <div class="form-group">
+                            <label>Asset ID</label>
+                            <input type="text" id="wa_id" class="form-control" required placeholder="e.g., tank-north-01">
+                        </div>
+                        <div class="form-group">
+                            <label>Asset Type</label>
+                            <select id="wa_type" class="form-control" required>
+                                <option value="tank">Tank</option>
+                                <option value="pump">Pump</option>
+                                <option value="valve">Valve</option>
+                                <option value="trough">Trough</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Asset Name</label>
+                            <input type="text" id="wa_name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Latitude</label>
+                            <input type="number" step="any" id="wa_lat" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Longitude</label>
+                            <input type="number" step="any" id="wa_lng" class="form-control">
+                        </div>
+                        <button type="submit" class="btn">Add Water Asset</button>
+                    </form>
+                </div>
+
+                <div class="wizard-step">
+                    <h3>7. Log Grazing Event</h3>
                     <form id="grazing-form">
                         <div class="form-group">
                             <label>Paddock ID</label>

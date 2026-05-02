@@ -56,6 +56,18 @@ class LivestockObservation(GraphEntity):
     health_notes: Optional[str] = None
 
 @dataclass
+class WaterAsset(GraphEntity):
+    id: str
+    farm_id: str
+    asset_type: str # tank, pump, valve, trough
+    name: str
+    field_id: Optional[str] = None
+    paddock_id: Optional[str] = None
+    location: Optional[Dict[str, Any]] = None
+    capacity_liters: Optional[float] = None
+    boundary_geojson: Optional[Dict[str, Any]] = None
+
+@dataclass
 class SoilMapUnit(GraphEntity) :
     id: str
     farm_id: str

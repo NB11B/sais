@@ -14,7 +14,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         "Field": { color: "#3b82f6", weight: 2, opacity: 0.1 },
         "ManagementZone": { color: "#06b6d4", weight: 1, opacity: 0.2 },
         "Paddock": { color: "#f59e0b", weight: 1, opacity: 0.2 },
-        "SensorNode": { color: "#ef4444" } // markers
+        "SensorNode": { color: "#ef4444" }, // markers
+        "WaterAsset": { color: "#0ea5e9" } // sky blue markers
     };
 
     // Initialize layer groups
@@ -92,6 +93,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                         fillOpacity: 1
                     }).bindPopup(`<b>Sensor: ${node.name}</b><br>Type: ${node.payload.node_type}`);
                     layers.SensorNode.addLayer(marker);
+                }
+            }
+
+            // Render Water Assets as Markers
+            if (category === "WaterAsset" && node.payload && node.payload.location) {
+                const loc = node.payload.location;
+                if (loc.lat && loc.lng) {
+                    const icon = node.payload.asset_type === 'tank' ? '🛢️' : '🚰';
+                    const marker = L.marker([loc.lat, loc.lng], {
+                        icon: L.divIcon({
+                            html: `<div style="font-size: 20px;">${icon}</div>`,
+                            className: 'water-icon',
+                            iconSize: [20, 20]
+                        })
+                    }).bindPopup(`<b>${node.name}</b><br>Type: ${node.payload.asset_type}`);
+                    layers.WaterAsset.addLayer(marker);
                 }
             }
         });

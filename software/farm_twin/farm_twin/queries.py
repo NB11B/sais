@@ -336,3 +336,125 @@ def get_livestock_heat_stress(graph: FarmGraph, farm_id: str, paddock_id: str):
         "suggested_inspection": "Ensure water access and shade." if status != "ok" else "Standard monitoring."
     }
 
+def get_water_system_summary(graph: FarmGraph, farm_id: str):
+    """
+    Summarizes the ranch hydraulic operating picture.
+    PFKR-1: Water Status and Movement
+    """
+    evidence = []
+    cursor = graph.storage.conn.cursor()
+    
+    # 1. Get Tank Levels
+    cursor.execute("""
+        SELECT node_id, value, timestamp FROM observations 
+        WHERE farm_id = ? AND measurement_id = 'water.tank.level_percent'
+        ORDER BY timestamp DESC
+    """, (farm_id,))
+    tanks = {}
+    for row in cursor.fetchall():
+        if row[0] not in tanks:
+            tanks[row[0]] = {"value": row[1], "ts": row[2]}
+            
+    # 2. Get Pump States
+    cursor.execute("""
+        SELECT node_id, value, timestamp FROM observations 
+        WHERE farm_id = ? AND measurement_id = 'water.pump.state'
+        ORDER BY timestamp DESC
+    """, (farm_id,))
+    pumps = {}
+    for row in cursor.fetchall():
+        if row[0] not in pumps:
+            pumps[row[0]] = {"value": row[1], "ts": row[2]}
+
+    status = "ok"
+    if not tanks:
+        return {"status": "insufficient_data", "evidence": ["No tank level telemetry found."]}
+
+    # Check for low levels
+    for tid, data in tanks.items():
+        evidence.append(f"Tank {tid}: {data['value']}%")
+        if data['value'] < 15: status = "alert"
+        elif data['value'] < 30: status = "action"
+        elif data['value'] < 50: status = "watch"
+        
+    # Check pump failures (e.g. state=0 when level is falling)
+    # Simplified logic: just report current states
+    for pid, data in pumps.items():
+        state = "ON" if data['value'] == 1 else "OFF"
+        evidence.append(f"Pump {pid}: {state}")
+
+    return {
+        "status": status,
+        "evidence": evidence,
+        "tanks": tanks,
+        "pumps": pumps
+    }
+
+def get_water_demand_index(graph: FarmGraph, farm_id: str, paddock_id: str):
+    """
+    Predicts water demand risk by fusing heat stress and herd location.
+    PFKR-1/2/5/7 Fusion
+    """
+    evidence = []
+    
+    # 1. Heat Stress Check (PFKR-5/7)
+    heat = get_livestock_heat_stress(graph, farm_id, paddock_id)
+    heat_factor = 1.0
+    if heat["status"] == "alert": heat_factor = 2.0
+    elif heat["status"] == "action": heat_factor = 1.5
+    evidence.append(f"Heat stress multiplier: {heat_factor}x")
+    
+    # 2. Active Grazing Check (PFKR-2)
+    # If herd is in this paddock, demand is high
+    latest_event = graph.storage.get_latest_grazing_event(paddock_id)
+    grazing_active = False
+    if latest_event and not latest_event.get("ended_at"):
+        grazing_active = True
+        animal_count = latest_event.get("animal_count", 0)
+        evidence.append(f"Active grazing: {animal_count} animals")
+    
+    status = "ok"
+    meaning = "Water demand is within normal ranges."
+    
+    if grazing_active and heat_factor > 1.2:
+        status = "watch"
+        meaning = "Rising water demand due to heat stress and herd concentration."
+        evidence.append("High demand warning: herd present + thermal stress.")
+        
+    return {
+        "status": status,
+        "evidence": evidence,
+        "meaning": meaning,
+        "grazing_active": grazing_active
+    }
+
+def get_source_health(graph: FarmGraph, farm_id: str, measurement_id: str):
+    """
+    Checks for stale data or offline sensors.
+    PFKR-8: Source Health and Confidence
+    """
+    cursor = graph.storage.conn.cursor()
+    cursor.execute("""
+        SELECT timestamp FROM observations 
+        WHERE farm_id = ? AND measurement_id = ?
+        ORDER BY timestamp DESC LIMIT 1
+    """, (farm_id, measurement_id))
+    row = cursor.fetchone()
+    
+    if not row:
+        return {"status": "offline", "evidence": [f"No data ever received for {measurement_id}"]}
+        
+    ts = datetime.fromisoformat(row[0].replace("Z", "+00:00"))
+    now = datetime.now(timezone.utc)
+    delta_hrs = (now - ts).total_seconds() / 3600
+    
+    status = "ok"
+    if delta_hrs > 24: status = "offline"
+    elif delta_hrs > 4: status = "stale_data"
+    
+    return {
+        "status": status,
+        "last_seen_hrs": round(delta_hrs, 1),
+        "evidence": [f"Last reading: {round(delta_hrs, 1)}h ago"]
+    }
+
