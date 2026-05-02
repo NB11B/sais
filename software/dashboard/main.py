@@ -38,25 +38,29 @@ async def network_page(request: Request):
 @app.get("/api/cards")
 async def get_cards():
     graph = get_graph()
-    cursor = graph.storage.conn.cursor()
-    # Fetch all cards sorted by newest
-    cursor.execute("SELECT payload_json FROM cards ORDER BY created_at DESC")
-    cards = []
-    for row in cursor.fetchall():
-        cards.append(json.loads(row[0]))
-    graph.storage.conn.close()
-    return {"cards": cards}
+    try:
+        cursor = graph.storage.conn.cursor()
+        # Fetch all cards sorted by newest
+        cursor.execute("SELECT payload_json FROM cards ORDER BY created_at DESC")
+        cards = []
+        for row in cursor.fetchall():
+            cards.append(json.loads(row[0]))
+        return {"cards": cards}
+    finally:
+        graph.storage.conn.close()
 
 @app.get("/api/observations")
 async def get_observations(limit: int = 20):
     graph = get_graph()
-    cursor = graph.storage.conn.cursor()
-    cursor.execute("SELECT payload_json FROM observations ORDER BY timestamp DESC LIMIT ?", (limit,))
-    obs = []
-    for row in cursor.fetchall():
-        obs.append(json.loads(row[0]))
-    graph.storage.conn.close()
-    return {"observations": obs}
+    try:
+        cursor = graph.storage.conn.cursor()
+        cursor.execute("SELECT payload_json FROM observations ORDER BY timestamp DESC LIMIT ?", (limit,))
+        obs = []
+        for row in cursor.fetchall():
+            obs.append(json.loads(row[0]))
+        return {"observations": obs}
+    finally:
+        graph.storage.conn.close()
 
 from schemas import ObservationPayload
 
@@ -94,40 +98,40 @@ async def post_observation(payload: ObservationPayload):
 @app.get("/api/graph")
 async def get_graph_summary():
     graph = get_graph()
-    cursor = graph.storage.conn.cursor()
-    
-    nodes = []
-    cursor.execute("SELECT id, type, payload_json FROM nodes")
-    for row in cursor.fetchall():
-        payload = json.loads(row[2]) if row[2] else {}
-        nodes.append({
-            "id": row[0],
-            "name": payload.get("name", row[0]),
-            "labels": [row[1]],
-            "payload": payload
-        })
+    try:
+        cursor = graph.storage.conn.cursor()
+        nodes = []
+        cursor.execute("SELECT id, type, payload_json FROM nodes")
+        for row in cursor.fetchall():
+            payload = json.loads(row[2]) if row[2] else {}
+            nodes.append({
+                "id": row[0],
+                "name": payload.get("name", row[0]),
+                "labels": [row[1]],
+                "payload": payload
+            })
+            
+        cursor.execute("SELECT id, source_id, type, target_id FROM edges")
+        edges = []
+        for row in cursor.fetchall():
+            edges.append({
+                "id": row[0],
+                "source": row[1],
+                "type": row[2],
+                "target": row[3]
+            })
         
-    cursor.execute("SELECT id, source_id, type, target_id FROM edges")
-    edges = []
-    for row in cursor.fetchall():
-        edges.append({
-            "id": row[0],
-            "source": row[1],
-            "type": row[2],
-            "target": row[3]
-        })
-    
-    summary = {
-        "nodes": nodes,
-        "edges": edges,
-        "counts": {
-            "nodes": len(nodes),
-            "edges": len(edges)
+        summary = {
+            "nodes": nodes,
+            "edges": edges,
+            "counts": {
+                "nodes": len(nodes),
+                "edges": len(edges)
+            }
         }
-    }
-    
-    graph.storage.conn.close()
-    return summary
+        return summary
+    finally:
+        graph.storage.conn.close()
 
 @app.get("/admin")
 async def admin_page(request: Request):
@@ -139,25 +143,29 @@ from farm_twin.models import Farm, Field, ManagementZone, Paddock, SensorNode
 @app.get("/api/farm/profile")
 async def get_farm_profile():
     graph = get_graph()
-    # Simple assembly of the farm hierarchy from nodes
-    nodes = {"Farm": [], "Field": [], "ManagementZone": [], "Paddock": [], "SensorNode": []}
-    cursor = graph.storage.conn.cursor()
-    cursor.execute("SELECT type, payload_json FROM nodes")
-    for row in cursor.fetchall():
-        ntype = row[0]
-        payload = json.loads(row[1]) if row[1] else {}
-        if ntype in nodes:
-            nodes[ntype].append(payload)
-    graph.storage.conn.close()
-    return nodes
+    try:
+        # Simple assembly of the farm hierarchy from nodes
+        nodes = {"Farm": [], "Field": [], "ManagementZone": [], "Paddock": [], "SensorNode": []}
+        cursor = graph.storage.conn.cursor()
+        cursor.execute("SELECT type, payload_json FROM nodes")
+        for row in cursor.fetchall():
+            ntype = row[0]
+            payload = json.loads(row[1]) if row[1] else {}
+            if ntype in nodes:
+                nodes[ntype].append(payload)
+        return nodes
+    finally:
+        graph.storage.conn.close()
 
 @app.put("/api/farm/profile")
 async def put_farm_profile(payload: FarmPayload):
     graph = get_graph()
-    farm = Farm(**payload.model_dump())
-    graph.add_node(farm)
-    graph.storage.conn.close()
-    return {"status": "success", "id": farm.id}
+    try:
+        farm = Farm(**payload.model_dump())
+        graph.add_node(farm)
+        return {"status": "success", "id": farm.id}
+    finally:
+        graph.storage.conn.close()
 
 @app.post("/api/farm/fields")
 @app.put("/api/farm/fields/{field_id}")
@@ -165,13 +173,15 @@ async def post_farm_field(payload: FieldPayload, field_id: str = None):
     if field_id and field_id != payload.id:
         raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
-    if not graph.get_node(payload.farm_id):
-        raise HTTPException(status_code=400, detail="Parent farm_id does not exist")
-    field = Field(**payload.model_dump())
-    graph.add_node(field)
-    graph.add_edge(field.farm_id, "CONTAINS", field.id)
-    graph.storage.conn.close()
-    return {"status": "success", "id": field.id}
+    try:
+        if not graph.get_node(payload.farm_id):
+            raise HTTPException(status_code=400, detail="Parent farm_id does not exist")
+        field = Field(**payload.model_dump())
+        graph.add_node(field)
+        graph.add_edge(field.farm_id, "CONTAINS", field.id)
+        return {"status": "success", "id": field.id}
+    finally:
+        graph.storage.conn.close()
 
 @app.post("/api/farm/zones")
 @app.put("/api/farm/zones/{zone_id}")
@@ -179,13 +189,15 @@ async def post_farm_zone(payload: ZonePayload, zone_id: str = None):
     if zone_id and zone_id != payload.id:
         raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
-    if not graph.get_node(payload.field_id):
-        raise HTTPException(status_code=400, detail="Parent field_id does not exist")
-    zone = ManagementZone(**payload.model_dump())
-    graph.add_node(zone)
-    graph.add_edge(zone.field_id, "CONTAINS", zone.id)
-    graph.storage.conn.close()
-    return {"status": "success", "id": zone.id}
+    try:
+        if not graph.get_node(payload.field_id):
+            raise HTTPException(status_code=400, detail="Parent field_id does not exist")
+        zone = ManagementZone(**payload.model_dump())
+        graph.add_node(zone)
+        graph.add_edge(zone.field_id, "CONTAINS", zone.id)
+        return {"status": "success", "id": zone.id}
+    finally:
+        graph.storage.conn.close()
 
 @app.post("/api/farm/paddocks")
 @app.put("/api/farm/paddocks/{paddock_id}")
@@ -193,13 +205,15 @@ async def post_farm_paddock(payload: PaddockPayload, paddock_id: str = None):
     if paddock_id and paddock_id != payload.id:
         raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
-    if not graph.get_node(payload.field_id):
-        raise HTTPException(status_code=400, detail="Parent field_id does not exist")
-    paddock = Paddock(**payload.model_dump())
-    graph.add_node(paddock)
-    graph.add_edge(paddock.field_id, "CONTAINS", paddock.id)
-    graph.storage.conn.close()
-    return {"status": "success", "id": paddock.id}
+    try:
+        if not graph.get_node(payload.field_id):
+            raise HTTPException(status_code=400, detail="Parent field_id does not exist")
+        paddock = Paddock(**payload.model_dump())
+        graph.add_node(paddock)
+        graph.add_edge(paddock.field_id, "CONTAINS", paddock.id)
+        return {"status": "success", "id": paddock.id}
+    finally:
+        graph.storage.conn.close()
 
 @app.post("/api/farm/sensor-nodes")
 @app.put("/api/farm/sensor-nodes/{node_id}")
@@ -207,19 +221,21 @@ async def post_sensor_node(payload: SensorNodePayload, node_id: str = None):
     if node_id and node_id != payload.id:
         raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
-    if payload.zone_id and not graph.get_node(payload.zone_id):
-        raise HTTPException(status_code=400, detail="zone_id does not exist")
-    if payload.field_id and not graph.get_node(payload.field_id):
-        raise HTTPException(status_code=400, detail="field_id does not exist")
-        
-    sensor = SensorNode(**payload.model_dump())
-    graph.add_node(sensor)
-    if sensor.zone_id:
-        graph.add_edge(sensor.id, "DEPLOYED_IN", sensor.zone_id)
-    elif sensor.field_id:
-        graph.add_edge(sensor.id, "DEPLOYED_IN", sensor.field_id)
-    graph.storage.conn.close()
-    return {"status": "success", "id": sensor.id}
+    try:
+        if payload.zone_id and not graph.get_node(payload.zone_id):
+            raise HTTPException(status_code=400, detail="zone_id does not exist")
+        if payload.field_id and not graph.get_node(payload.field_id):
+            raise HTTPException(status_code=400, detail="field_id does not exist")
+            
+        sensor = SensorNode(**payload.model_dump())
+        graph.add_node(sensor)
+        if sensor.zone_id:
+            graph.add_edge(sensor.id, "DEPLOYED_IN", sensor.zone_id)
+        elif sensor.field_id:
+            graph.add_edge(sensor.id, "DEPLOYED_IN", sensor.field_id)
+        return {"status": "success", "id": sensor.id}
+    finally:
+        graph.storage.conn.close()
 
 if __name__ == "__main__":
     import uvicorn

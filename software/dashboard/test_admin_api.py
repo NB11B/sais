@@ -9,8 +9,12 @@ db_path = "test_sais_admin.sqlite"
 os.environ["SAIS_DB_PATH"] = db_path
 
 from main import app, get_graph
+from farm_twin.models import Farm, Field, ManagementZone
 
-client = TestClient(app)
+@pytest.fixture
+def client():
+    with TestClient(app) as c:
+        yield c
 
 @pytest.fixture(autouse=True)
 def setup_teardown():
@@ -28,7 +32,7 @@ def setup_teardown():
     if os.path.exists(db_path):
         os.remove(db_path)
 
-def test_admin_api_workflow():
+def test_admin_api_workflow(client):
     # 1. Farm
     farm_geojson = {"type": "Polygon", "coordinates": [[[0,0], [1,0], [1,1], [0,1], [0,0]]]}
     r = client.put("/api/farm/profile", json={

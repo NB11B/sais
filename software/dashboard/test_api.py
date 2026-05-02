@@ -1,7 +1,41 @@
+import pytest
+import os
 from fastapi.testclient import TestClient
-from main import app
+
+# Setup DB path override BEFORE importing main
+db_path = "test_sais_api.sqlite"
+os.environ["SAIS_DB_PATH"] = db_path
+
+from main import app, get_graph
+from farm_twin.models import Farm, Field, ManagementZone
 
 client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def setup_teardown():
+    # Setup
+    if os.path.exists(db_path):
+        os.remove(db_path)
+    
+    # Initialize schema and seed data
+    graph = get_graph()
+    farm = Farm(id="local", name="Test Farm")
+    field = Field(id="field-a", farm_id="local", name="Test Field")
+    zone = ManagementZone(id="zone-a1", field_id="field-a", name="Test Zone")
+    
+    graph.add_node(farm)
+    graph.add_node(field)
+    graph.add_node(zone)
+    graph.add_edge(farm.id, "CONTAINS", field.id)
+    graph.add_edge(field.id, "CONTAINS", zone.id)
+    
+    graph.storage.conn.close()
+    
+    yield
+    
+    # Teardown
+    if os.path.exists(db_path):
+        os.remove(db_path)
 
 def test_read_main():
     response = client.get("/")
