@@ -1,37 +1,92 @@
 # Sovereign Ag-Infrastructure Stack (SAIS)
 
-> **A sovereign, offline-first C4ISR platform for farm and ranch operations.**
+> **C4ISR for farming and ranching.**
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Status: Active Development](https://img.shields.io/badge/Status-Active%20Development-green.svg)]()
 [![Architecture: Offline First](https://img.shields.io/badge/Architecture-Offline%20First-orange.svg)]()
 [![Stack: FastAPI + SQLite](https://img.shields.io/badge/Stack-FastAPI%20%2B%20SQLite-purple.svg)]()
 
-SAIS is an open-source, edge-native command platform for farms, ranches, and closed-loop resource environments. It fuses low-cost sensors, manual farmer observations, open geospatial data, weather data, soil context, and live telemetry into a local farm digital twin.
+SAIS is an open-source command platform for farms and ranches. It is being built to give operators a local, offline-first system for seeing what is happening across the land, understanding why it matters, and deciding what to do next.
 
-The purpose is simple:
+SAIS combines:
 
 ```text
-all sources
-→ farm digital twin
-→ fused intelligence
-→ farmer-facing decision cards
-→ auditable action loop
+sensors
++ weather
++ terrain
++ soil maps
++ hydrology
++ farm boundaries
++ field notes
++ livestock and water assets
++ live observations
+→ farm/ranch digital twin
+→ operational intelligence
+→ decision cards
+→ auditable action history
 ```
 
-SAIS is being designed as the farm/ranch equivalent of a C4ISR system:
+This is not a carbon-market platform. It is not a cloud farm-management subscription. It is not a generic dashboard.
 
-| C4ISR Function | SAIS Equivalent |
+SAIS is meant to address the real operating problem on farms and ranches:
+
+```text
+How do I know what is happening across my land right now,
+what changed,
+where the risk is,
+what needs inspection,
+and what action is justified by the evidence?
+```
+
+**The operator owns the hardware. The operator owns the data. The operator owns the intelligence.**
+
+---
+
+## What SAIS Is
+
+SAIS is the farm/ranch equivalent of a C4ISR system.
+
+| C4ISR Function | SAIS Implementation |
 |---|---|
-| Command | Operator dashboard, Admin setup, decision cards |
-| Control | Future relays, valves, pumps, gates, and actuator workflows |
+| Command | Operator Feed, Admin Setup, decision cards, farm status overview |
+| Control | Future relays, pumps, valves, gates, water systems, and actuator workflows |
 | Communications | Sensor telemetry API, future LoRa/BLE/MQTT/serial bridges |
-| Computers | FarmGraph, SQLite, geospatial ingest, local FastAPI dashboard |
-| Intelligence | Runoff risk, water-retention alerts, future grazing and plant-stress cards |
-| Surveillance | Soil sensors, weather, tanks, livestock, cameras, and field observations |
-| Reconnaissance | Farmer field walks, manual notes, satellite/geospatial layers |
+| Computers | Local FastAPI dashboard, SQLite FarmGraph, geospatial processing pipeline |
+| Intelligence | Runoff risk, water-retention status, weather context, future grazing and plant-stress logic |
+| Surveillance | Soil sensors, weather stations, tank sensors, livestock tags, cameras, field observations |
+| Reconnaissance | Farmer field walks, manual notes, satellite/geospatial data, terrain and hydrology analysis |
 
-**The farmer owns the hardware. The farmer owns the data. The farmer owns the intelligence.**
+The goal is an all-source operating picture for the farm or ranch.
+
+---
+
+## What SAIS Is Built to Address
+
+SAIS is being built for practical field problems:
+
+- knowing where water is entering, pooling, running off, or failing to infiltrate;
+- tracking soil moisture, soil temperature, rainfall, and field conditions by zone;
+- mapping farm boundaries, fields, paddocks, management zones, and sensor locations;
+- connecting live sensor observations to terrain, soil, and hydrology context;
+- detecting when a zone needs inspection before the problem is obvious from the road;
+- giving the operator evidence, not just alerts;
+- keeping the system useful when the internet is unavailable;
+- avoiding dependency on proprietary cloud dashboards;
+- creating a local operational record of observations, decisions, and interventions.
+
+SAIS should help answer questions like:
+
+```text
+Which paddock is ready?
+Which zone is drying too fast?
+Where is runoff risk highest?
+Which sensor has gone stale?
+Did the last rainfall enter the root zone?
+Where should I inspect compaction, bare soil, or crusting?
+Which water tank, pump, valve, or gate needs attention?
+What evidence supports this recommendation?
+```
 
 ---
 
@@ -72,7 +127,7 @@ interactive polygon drawing
 offline local tile package
 actuator control
 cryptographic audit ledger
-LLM/RAG layer
+livestock and tank sensor packages
 ```
 
 The current implementation is intentionally local, inspectable, and offline-first.
@@ -116,13 +171,13 @@ The current implementation is intentionally local, inspectable, and offline-firs
 
 ---
 
-## Main Dashboard Views
+## Dashboard Views
 
 ### Operator Feed
 
-Daily decision cockpit. Shows current intelligence cards, latest observations, status, evidence chains, and suggested inspections.
+Daily decision cockpit. Shows intelligence cards, latest observations, status, evidence chains, and suggested inspections.
 
-Default route:
+Route:
 
 ```text
 /
@@ -130,7 +185,7 @@ Default route:
 
 ### GIS Twin
 
-Spatial farm view. Renders farm boundaries, fields, management zones, paddocks, and sensor markers using GeoJSON stored in the FarmGraph.
+Spatial operating picture. Renders farm boundaries, fields, management zones, paddocks, and sensor markers using GeoJSON stored in the FarmGraph.
 
 Route:
 
@@ -140,7 +195,7 @@ Route:
 
 ### Knowledge Graph
 
-Semantic and audit/debug view. Shows how farms, fields, zones, sensors, observations, measurements, geospatial layers, and cards connect.
+Semantic/debug/audit view. Shows how farms, fields, zones, sensors, observations, measurements, geospatial layers, and cards connect.
 
 Route:
 
@@ -150,7 +205,7 @@ Route:
 
 ### Admin Setup
 
-Farm configuration interface. Used to define farm identity, boundaries, fields, zones, paddocks, and sensor nodes without manually editing seed files.
+Configuration interface. Used to define farm identity, boundaries, fields, zones, paddocks, and sensor nodes without manually editing seed files.
 
 Route:
 
@@ -269,7 +324,7 @@ Admin changes write directly to the FarmGraph SQLite database. The GIS Twin and 
 
 ## Offline Geospatial Ingest Pipeline
 
-The geospatial pipeline is designed as a provisioning pipeline that runs on a laptop or setup machine. This keeps heavy GIS dependencies off embedded edge nodes.
+The geospatial pipeline is a provisioning pipeline that runs on a laptop or setup machine. This keeps heavy GIS dependencies off embedded field nodes.
 
 Location:
 
@@ -424,11 +479,15 @@ sais/
 
 ## Design Principles
 
-### Offline first
+### Field-first
+
+The system should be useful to a working farm or ranch operator, not just technically interesting.
+
+### Offline-first
 
 The farm must remain operational without internet access. Cloud services may be optional enrichments, never core dependencies.
 
-### Low cost first
+### Low-cost first
 
 Prefer, in order:
 
@@ -442,10 +501,10 @@ optional advanced modules
 
 ### Measurement to meaning
 
-SAIS does not begin with sensors. It begins with farmer questions:
+SAIS does not begin with sensors. It begins with operational questions:
 
 ```text
-Farm question
+Farm/ranch question
 → meaningful measurement
 → cheapest source
 → confidence level
@@ -527,7 +586,7 @@ Current repository work is focused on the software, geospatial, dashboard, and d
 
 ## Security Posture
 
-SAIS is not yet a certified safety system.
+SAIS is not yet a certified safety or actuator-control system.
 
 Current security posture:
 
@@ -546,7 +605,7 @@ Future security work:
 signed node telemetry
 node identity registry
 anti-replay counters
-cryptographic audit records
+local audit records
 role-based local admin access
 field-safe actuator authorization
 ```
@@ -565,7 +624,7 @@ Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) before submitting a pull reques
 
 SAIS is released under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
-This means derivative work, including network-deployed services, must also be released under the same license. This is deliberate: SAIS is intended to remain farmer-owned, inspectable, and resistant to proprietary enclosure.
+This means derivative work, including network-deployed services, must also be released under the same license. This is deliberate: SAIS is intended to remain operator-owned, inspectable, and resistant to proprietary enclosure.
 
 See [`LICENSE`](LICENSE) for the full text.
 
