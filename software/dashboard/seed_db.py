@@ -12,12 +12,16 @@ from farm_twin.ingest_observation import ingest_farm_profile, ingest_sensor_obse
 from farm_twin.cards import generate_water_retention_card
 
 def seed_database():
-    db_path = os.path.join(sais_root, "sais.sqlite")
+    db_path = os.environ.get("SAIS_DB_PATH", os.path.join(sais_root, "sais.sqlite"))
     
     if os.path.exists(db_path):
-        os.remove(db_path)
+        try:
+            os.remove(db_path)
+            print(f"Removed existing database at {db_path}")
+        except PermissionError:
+            print(f"Warning: Could not remove {db_path} (file locked). Appending to existing DB.")
         
-    print(f"Creating new database at {db_path}...")
+    print(f"Initializing database at {db_path}...")
     graph = FarmGraph(db_path)
     
     print("1. Ingesting Farm Profile...")

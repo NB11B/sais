@@ -21,10 +21,10 @@ def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(("0.0.0.0", args.port))
 
-    print(f"📡 SAIS Hardware Bridge Active")
+    print(f"[*] SAIS Hardware Bridge Active")
     print(f"Listening on UDP :{args.port}")
     print(f"Forwarding to: {args.url}")
-    print("Format expected: node_id,measurement_id,value,unit,layer")
+    print("Format expected: node_id,measurement_id,value,unit,layer[,field_id,zone_id,depth_cm]")
     print("Press Ctrl+C to exit.\n")
 
     try:
@@ -33,9 +33,9 @@ def main():
             message = data.decode('utf-8').strip()
             print(f"[{addr[0]}] Received: {message}")
             
-            parts = message.split(",")
+            parts = [p.strip() for p in message.split(",")]
             if len(parts) < 3:
-                print(f"⚠️ Malformed message from {addr[0]}")
+                print(f"[!] Malformed message from {addr[0]}")
                 continue
                 
             node_id = parts[0]
@@ -43,11 +43,14 @@ def main():
             try:
                 value = float(parts[2])
             except ValueError:
-                print(f"⚠️ Non-numeric value in message from {addr[0]}")
+                print(f"[!] Non-numeric value in message from {addr[0]}")
                 continue
                 
             unit = parts[3] if len(parts) > 3 else None
             layer = parts[4] if len(parts) > 4 else "Hardware"
+            field_id = parts[5] if len(parts) > 5 else None
+            zone_id = parts[6] if len(parts) > 6 else None
+            depth_cm = int(parts[7]) if len(parts) > 7 else 10 # Default to 10cm if unknown
             
             # Post to SAIS
             success, result = client.post_observation(
@@ -57,13 +60,19 @@ def main():
                 layer=layer,
                 value=value,
                 unit=unit,
-                source={"type": "hardware_bridge", "ip": addr[0]}
+                field_id=field_id,
+                zone_id=zone_id,
+                source={
+                    "type": "hardware_bridge", 
+                    "ip": addr[0],
+                    "depth_cm": depth_cm
+                }
             )
             
             if success:
-                print(f"✅ Forwarded {node_id} -> {meas_id}")
+                print(f"[+] Forwarded {node_id} -> {meas_id}")
             else:
-                print(f"❌ Failed to forward: {result}")
+                print(f"[-] Failed to forward: {result}")
                 
     except KeyboardInterrupt:
         print("\nBridge stopped cleanly.")
