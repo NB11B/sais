@@ -56,6 +56,7 @@
                 <a href="/" class="nav-link">Operator Feed</a>
                 <a href="/map" class="nav-link active">GIS Twin</a>
                 <a href="/network" class="nav-link">Knowledge Graph</a>
+                <a href="/admin" class="nav-link">Admin Setup</a>
             </nav>
 
             <div class="status-indicator">
@@ -67,10 +68,12 @@
             <!-- Layers Panel -->
             <section class="panel">
                 <div class="panel-header">
-                    <h2>Geospatial Assets</h2>
+                    <h2>Layer Control</h2>
                 </div>
-                <div class="panel-content" id="layers-container">
-                    <div class="loading">Loading spatial layers...</div>
+                <div class="panel-content">
+                    <div id="layer-toggles">
+                        <!-- Toggles dynamically injected here -->
+                    </div>
                 </div>
             </section>
 
@@ -79,73 +82,6 @@
         </main>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            // Initialize map (approximate center of US, zoom 4)
-            const map = L.map('map').setView([39.8283, -98.5795], 4);
-
-            // Add dark mode basemap (OpenStreetMap converted via CSS filter)
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
-
-            // Fetch Graph to get layers and farm boundary
-            try {
-                const res = await fetch('/api/graph');
-                const data = await res.json();
-                
-                const layersContainer = document.getElementById('layers-container');
-                layersContainer.innerHTML = '';
-                
-                let boundaries = [];
-                
-                data.nodes.forEach(node => {
-                    // Populate Layers Panel
-                    if (node.labels.includes("GeospatialLayer")) {
-                        const payload = node.payload || {};
-                        const el = document.createElement('div');
-                        el.className = 'layer-item';
-                        el.innerHTML = `
-                            <div class="layer-type">${payload.layer_type || node.name}</div>
-                            <div class="layer-path">${payload.path || 'Unknown path'}</div>
-                        `;
-                        layersContainer.appendChild(el);
-                    }
-                    
-                    // Collect GeoJSON boundaries
-                    if (node.payload && node.payload.boundary_geojson) {
-                        const geojson = node.payload.boundary_geojson;
-                        boundaries.push(geojson);
-                        
-                        // Add to map
-                        L.geoJSON(geojson, {
-                            style: {
-                                color: node.labels.includes("Farm") ? "#10b981" : "#3b82f6",
-                                weight: 2,
-                                fillOpacity: 0.1
-                            }
-                        }).bindPopup(`<b>${node.name}</b><br>${node.labels.join(', ')}`).addTo(map);
-                    }
-                });
-                
-                if (layersContainer.children.length === 0) {
-                    layersContainer.innerHTML = '<div class="loading">No spatial assets found.</div>';
-                }
-                
-                // Auto-fit map to boundaries if we have them
-                if (boundaries.length > 0) {
-                    const group = new L.featureGroup();
-                    map.eachLayer((layer) => {
-                        if (layer.feature) { group.addLayer(layer); }
-                    });
-                    map.fitBounds(group.getBounds(), { padding: [50, 50] });
-                }
-
-            } catch (err) {
-                console.error("Failed to load graph data", err);
-            }
-        });
-    </script>
+    <script src="/static/map_layers.js"></script>
 </body>
 </html>

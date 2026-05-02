@@ -129,6 +129,79 @@ async def get_graph_summary():
     graph.storage.conn.close()
     return summary
 
+@app.get("/admin")
+async def admin_page(request: Request):
+    return templates.TemplateResponse(request=request, name="admin.html", context={"request": request})
+
+from schemas import FarmPayload, FieldPayload, ZonePayload, PaddockPayload, SensorNodePayload
+from farm_twin.models import Farm, Field, ManagementZone, Paddock, SensorNode
+
+@app.get("/api/farm/profile")
+async def get_farm_profile():
+    graph = get_graph()
+    # Simple assembly of the farm hierarchy from nodes
+    nodes = {"Farm": [], "Field": [], "ManagementZone": [], "Paddock": [], "SensorNode": []}
+    cursor = graph.storage.conn.cursor()
+    cursor.execute("SELECT type, payload_json FROM nodes")
+    for row in cursor.fetchall():
+        ntype = row[0]
+        payload = json.loads(row[1]) if row[1] else {}
+        if ntype in nodes:
+            nodes[ntype].append(payload)
+    graph.storage.conn.close()
+    return nodes
+
+@app.put("/api/farm/profile")
+async def put_farm_profile(payload: FarmPayload):
+    graph = get_graph()
+    farm = Farm(**payload.model_dump())
+    graph.add_node(farm)
+    graph.storage.conn.close()
+    return {"status": "success", "id": farm.id}
+
+@app.post("/api/farm/fields")
+@app.put("/api/farm/fields/{field_id}")
+async def post_farm_field(payload: FieldPayload, field_id: str = None):
+    graph = get_graph()
+    field = Field(**payload.model_dump())
+    graph.add_node(field)
+    graph.add_edge(field.farm_id, "CONTAINS", field.id)
+    graph.storage.conn.close()
+    return {"status": "success", "id": field.id}
+
+@app.post("/api/farm/zones")
+@app.put("/api/farm/zones/{zone_id}")
+async def post_farm_zone(payload: ZonePayload, zone_id: str = None):
+    graph = get_graph()
+    zone = ManagementZone(**payload.model_dump())
+    graph.add_node(zone)
+    graph.add_edge(zone.field_id, "CONTAINS", zone.id)
+    graph.storage.conn.close()
+    return {"status": "success", "id": zone.id}
+
+@app.post("/api/farm/paddocks")
+@app.put("/api/farm/paddocks/{paddock_id}")
+async def post_farm_paddock(payload: PaddockPayload, paddock_id: str = None):
+    graph = get_graph()
+    paddock = Paddock(**payload.model_dump())
+    graph.add_node(paddock)
+    graph.add_edge(paddock.field_id, "CONTAINS", paddock.id)
+    graph.storage.conn.close()
+    return {"status": "success", "id": paddock.id}
+
+@app.post("/api/farm/sensor-nodes")
+@app.put("/api/farm/sensor-nodes/{node_id}")
+async def post_sensor_node(payload: SensorNodePayload, node_id: str = None):
+    graph = get_graph()
+    sensor = SensorNode(**payload.model_dump())
+    graph.add_node(sensor)
+    if sensor.zone_id:
+        graph.add_edge(sensor.id, "DEPLOYED_IN", sensor.zone_id)
+    elif sensor.field_id:
+        graph.add_edge(sensor.id, "DEPLOYED_IN", sensor.field_id)
+    graph.storage.conn.close()
+    return {"status": "success", "id": sensor.id}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

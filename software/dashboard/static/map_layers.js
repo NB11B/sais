@@ -1,0 +1,115 @@
+document.addEventListener('DOMContentLoaded', async () => {
+    const map = L.map('map').setView([39.8283, -98.5795], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    const layerToggles = document.getElementById('layer-toggles');
+    const layers = {}; // Store references to Leaflet layers by category
+    
+    // Group categories
+    const categories = {
+        "Farm": { color: "#10b981", weight: 3, opacity: 0.1 },
+        "Field": { color: "#3b82f6", weight: 2, opacity: 0.1 },
+        "ManagementZone": { color: "#06b6d4", weight: 1, opacity: 0.2 },
+        "Paddock": { color: "#f59e0b", weight: 1, opacity: 0.2 },
+        "SensorNode": { color: "#ef4444" } // markers
+    };
+
+    // Initialize layer groups
+    Object.keys(categories).forEach(cat => {
+        layers[cat] = new L.featureGroup();
+        
+        // Build UI Toggle
+        const wrapper = document.createElement('div');
+        wrapper.style.display = 'flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.style.gap = '10px';
+        wrapper.style.marginBottom = '12px';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = true; // default on
+        checkbox.dataset.category = cat;
+        
+        const label = document.createElement('label');
+        label.innerText = cat;
+        label.style.flex = "1";
+        
+        const badge = document.createElement('div');
+        badge.style.width = '12px';
+        badge.style.height = '12px';
+        badge.style.background = categories[cat].color;
+        badge.style.borderRadius = '50%';
+        
+        wrapper.appendChild(checkbox);
+        wrapper.appendChild(badge);
+        wrapper.appendChild(label);
+        layerToggles.appendChild(wrapper);
+
+        // Toggle Event Listener
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                map.addLayer(layers[cat]);
+            } else {
+                map.removeLayer(layers[cat]);
+            }
+        });
+    });
+
+    try {
+        const res = await fetch('/api/graph');
+        const data = await res.json();
+        let boundaries = [];
+
+        data.nodes.forEach(node => {
+            // Find the category this node belongs to
+            let category = Object.keys(categories).find(c => node.labels.includes(c));
+            
+            if (category && node.payload && node.payload.boundary_geojson) {
+                const geojson = node.payload.boundary_geojson;
+                boundaries.push(geojson);
+                
+                const lLayer = L.geoJSON(geojson, {
+                    style: {
+                        color: categories[category].color,
+                        weight: categories[category].weight,
+                        fillOpacity: categories[category].opacity
+                    }
+                }).bindPopup(`<b>${node.name}</b><br>${node.labels.join(', ')}`);
+                
+                layers[category].addLayer(lLayer);
+            }
+            
+            // Render Sensor Nodes as Markers if they have a location
+            if (category === "SensorNode" && node.payload && node.payload.location) {
+                const loc = node.payload.location; // assumed {lat, lng}
+                if (loc.lat && loc.lng) {
+                    const marker = L.circleMarker([loc.lat, loc.lng], {
+                        color: categories.SensorNode.color,
+                        radius: 6,
+                        fillOpacity: 1
+                    }).bindPopup(`<b>Sensor: ${node.name}</b><br>Type: ${node.payload.node_type}`);
+                    layers.SensorNode.addLayer(marker);
+                }
+            }
+        });
+
+        // Add all layer groups to map initially
+        Object.keys(layers).forEach(cat => map.addLayer(layers[cat]));
+
+        if (boundaries.length > 0) {
+            const group = new L.featureGroup();
+            Object.keys(layers).forEach(cat => {
+                layers[cat].eachLayer(l => group.addLayer(l));
+            });
+            if (group.getLayers().length > 0) {
+                map.fitBounds(group.getBounds(), { padding: [50, 50] });
+            }
+        }
+
+    } catch (err) {
+        console.error("Failed to load map layers", err);
+    }
+});

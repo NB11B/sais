@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAIS | Admin Setup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+    <style>
+        .admin-container {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 24px;
+            height: calc(100vh - 120px);
+        }
+        .wizard-panel {
+            background: #1e293b;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+            padding: 24px;
+            overflow-y: auto;
+        }
+        .wizard-step {
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .wizard-step:last-child {
+            border-bottom: none;
+        }
+        .wizard-step h3 {
+            margin-top: 0;
+            color: var(--text-main);
+            margin-bottom: 16px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            box-sizing: border-box;
+        }
+        textarea.form-control {
+            resize: vertical;
+            min-height: 80px;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+            width: 100%;
+        }
+        .btn:hover {
+            background: #2563eb;
+        }
+        #admin-map {
+            width: 100%;
+            height: 100%;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+            background: #1e293b;
+        }
+        .leaflet-layer,
+        .leaflet-control-zoom-in,
+        .leaflet-control-zoom-out,
+        .leaflet-control-attribution {
+            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="topbar">
+            <div class="logo">SAIS <span>C2 Dashboard</span></div>
+            
+            <nav class="main-nav">
+                <a href="/" class="nav-link">Operator Feed</a>
+                <a href="/map" class="nav-link">GIS Twin</a>
+                <a href="/network" class="nav-link">Knowledge Graph</a>
+                <a href="/admin" class="nav-link active">Admin Setup</a>
+            </nav>
+
+            <div class="status-indicator">
+                <span class="dot pulse"></span> System Online
+            </div>
+        </header>
+
+        <main class="admin-container">
+            <section class="wizard-panel">
+                
+                <div class="wizard-step">
+                    <h3>1. Farm Identity</h3>
+                    <form id="farm-form">
+                        <div class="form-group">
+                            <label>Farm ID</label>
+                            <input type="text" id="farm_id" class="form-control" required placeholder="e.g., local">
+                        </div>
+                        <div class="form-group">
+                            <label>Farm Name</label>
+                            <input type="text" id="farm_name" class="form-control" required placeholder="e.g., Demo Farm">
+                        </div>
+                        <div class="form-group">
+                            <label>Boundary GeoJSON (Optional)</label>
+                            <textarea id="farm_geojson" class="form-control" placeholder='{"type": "Polygon", "coordinates": [...]}'></textarea>
+                        </div>
+                        <button type="submit" class="btn">Update Farm</button>
+                    </form>
+                </div>
+
+                <div class="wizard-step">
+                    <h3>2. Add Field</h3>
+                    <form id="field-form">
+                        <div class="form-group">
+                            <label>Field ID</label>
+                            <input type="text" id="field_id" class="form-control" required placeholder="e.g., field-a">
+                        </div>
+                        <div class="form-group">
+                            <label>Field Name</label>
+                            <input type="text" id="field_name" class="form-control" required placeholder="e.g., North Pasture">
+                        </div>
+                        <div class="form-group">
+                            <label>Boundary GeoJSON (Optional)</label>
+                            <textarea id="field_geojson" class="form-control" placeholder='{"type": "Polygon", ...}'></textarea>
+                        </div>
+                        <button type="submit" class="btn">Add Field</button>
+                    </form>
+                </div>
+
+                <div class="wizard-step">
+                    <h3>3. Add Management Zone</h3>
+                    <form id="zone-form">
+                        <div class="form-group">
+                            <label>Zone ID</label>
+                            <input type="text" id="zone_id" class="form-control" required placeholder="e.g., zone-a1">
+                        </div>
+                        <div class="form-group">
+                            <label>Parent Field ID</label>
+                            <input type="text" id="zone_field_id" class="form-control" required placeholder="e.g., field-a">
+                        </div>
+                        <div class="form-group">
+                            <label>Zone Name</label>
+                            <input type="text" id="zone_name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Boundary GeoJSON (Optional)</label>
+                            <textarea id="zone_geojson" class="form-control" placeholder='{"type": "Polygon", ...}'></textarea>
+                        </div>
+                        <button type="submit" class="btn">Add Zone</button>
+                    </form>
+                </div>
+
+                <div class="wizard-step">
+                    <h3>4. Sensor Placement</h3>
+                    <form id="sensor-form">
+                        <div class="form-group">
+                            <label>Sensor Node ID</label>
+                            <input type="text" id="sensor_id" class="form-control" required placeholder="e.g., node-soil-002">
+                        </div>
+                        <div class="form-group">
+                            <label>Target Zone ID (or Field ID)</label>
+                            <input type="text" id="sensor_target_id" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Node Type</label>
+                            <input type="text" id="sensor_type" class="form-control" required value="sensor">
+                        </div>
+                        <button type="submit" class="btn">Register Sensor</button>
+                    </form>
+                </div>
+
+            </section>
+
+            <div id="admin-map"></div>
+        </main>
+    </div>
+
+    <script src="/static/admin.js"></script>
+</body>
+</html>
