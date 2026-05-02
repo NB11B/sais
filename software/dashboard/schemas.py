@@ -89,3 +89,18 @@ class SensorNodePayload(BaseModel):
         if not isinstance(v, dict) or "lat" not in v or "lng" not in v:
             raise ValueError("Location must be a dict with 'lat' and 'lng'")
         return v
+
+class PlantObservationPayload(BaseModel):
+    schema_version: str = Field(alias="schema", default="sais.plant_observation.v1")
+    id: str
+    farm_id: str
+    paddock_id: str
+    timestamp: str
+    forage_mass_kg_ha: Optional[float] = None
+    cover_percent: Optional[float] = None
+    height_cm: Optional[float] = None
+    recovery_score: Optional[int] = None # 1-5
+    ndvi: Optional[float] = None
+    brix: Optional[float] = None
+    leaf_temperature: Optional[float] = None
+    notes: Optional[str] = None

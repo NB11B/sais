@@ -68,6 +68,21 @@ class WaterAsset(GraphEntity):
     boundary_geojson: Optional[Dict[str, Any]] = None
 
 @dataclass
+class PlantObservation(GraphEntity):
+    id: str
+    farm_id: str
+    paddock_id: str
+    timestamp: str
+    forage_mass_kg_ha: Optional[float] = None
+    cover_percent: Optional[float] = None
+    height_cm: Optional[float] = None
+    recovery_score: Optional[int] = None # 1-5
+    ndvi: Optional[float] = None
+    brix: Optional[float] = None
+    leaf_temperature: Optional[float] = None
+    notes: Optional[str] = None
+
+@dataclass
 class SoilMapUnit(GraphEntity) :
     id: str
     farm_id: str

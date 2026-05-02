@@ -250,3 +250,59 @@ def generate_water_source_health_card(graph: FarmGraph, farm_id: str):
     graph.storage.add_card(f"card-source-water-{farm_id}", now.isoformat(), card["card_type"], card["status"], card)
     return card
 
+def generate_forage_balance_card(graph: FarmGraph, farm_id: str, paddock_id: str):
+    """
+    Generates a card for forage supply vs animal demand.
+    PFKR-4: Plant Condition
+    """
+    from .queries import get_forage_balance
+    summary = get_forage_balance(graph, farm_id, paddock_id)
+    
+    card = {
+        "card_type": "ForageBalanceCard",
+        "pfkr_id": "PFKR-4",
+        "pfkr_domain": "Plant Condition and Production Risk",
+        "title": f"Forage Balance: {paddock_id}",
+        "status": summary["status"],
+        "location": {"farm_id": farm_id, "paddock_id": paddock_id},
+        "observation": summary.get("meaning", "Forage status unknown."),
+        "context": summary["evidence"],
+        "farmer_meaning": "Predicts grazing days remaining based on available forage mass.",
+        "suggested_inspection": "Monitor residual forage height." if summary["status"] != "ok" else "Standard forage check.",
+        "possible_interventions": ["Move herd early", "Supplement feed", "Reduce stocking rate"],
+        "evidence": summary["evidence"],
+        "confidence": "high" if summary["status"] != "insufficient_data" else "low"
+    }
+    
+    now = datetime.now(timezone.utc)
+    graph.storage.add_card(f"card-forage-{paddock_id}", now.isoformat(), card["card_type"], card["status"], card)
+    return card
+
+def generate_plant_recovery_card(graph: FarmGraph, farm_id: str, paddock_id: str):
+    """
+    Generates a card for plant regrowth and recovery status.
+    PFKR-4: Plant Condition
+    """
+    from .queries import get_plant_recovery_status
+    summary = get_plant_recovery_status(graph, paddock_id)
+    
+    card = {
+        "card_type": "PlantRecoveryCard",
+        "pfkr_id": "PFKR-4",
+        "pfkr_domain": "Plant Condition and Production Risk",
+        "title": f"Recovery Status: {paddock_id}",
+        "status": summary["status"],
+        "location": {"farm_id": farm_id, "paddock_id": paddock_id},
+        "observation": "Regrowth is progressing." if summary["status"] == "ok" else "Regrowth is slow or delayed.",
+        "context": summary["evidence"],
+        "farmer_meaning": "Tracks how well plants are recovering after a grazing event.",
+        "suggested_inspection": "Check for overgrazing or moisture stress.",
+        "possible_interventions": ["Extend rest period", "Check soil moisture"],
+        "evidence": summary["evidence"],
+        "confidence": "high" if summary["status"] != "insufficient_data" else "low"
+    }
+    
+    now = datetime.now(timezone.utc)
+    graph.storage.add_card(f"card-recovery-{paddock_id}", now.isoformat(), card["card_type"], card["status"], card)
+    return card
+

@@ -91,6 +91,9 @@
             <a href="#" class="mobile-nav-link action-link" id="open-water-btn" style="background: var(--status-ok);">
                 <span>Water</span>
             </a>
+            <a href="#" class="mobile-nav-link action-link" id="open-plant-btn" style="background: var(--accent);">
+                <span>Plant</span>
+            </a>
         </nav>
     </div>
 
@@ -146,6 +149,37 @@
                     <textarea id="water_notes" class="form-control" placeholder="Cleanliness, leaks, etc."></textarea>
                 </div>
                 <button type="submit" class="btn" style="background: var(--status-ok); border-color: var(--status-ok);">Record Water Status</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Plant Check Modal -->
+    <div id="plant-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Plant & Forage Check</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <form id="plant-form">
+                <div class="form-group">
+                    <label>Paddock</label>
+                    <select id="pl_paddock_id" class="form-control" required>
+                        <option value="">Select Paddock...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Forage Mass (kg DM/ha)</label>
+                    <input type="number" id="pl_mass" class="form-control" placeholder="e.g. 2500">
+                </div>
+                <div class="form-group">
+                    <label>Height (cm)</label>
+                    <input type="number" id="pl_height" class="form-control" placeholder="e.g. 20">
+                </div>
+                <div class="form-group">
+                    <label>Recovery Score (1-5)</label>
+                    <input type="number" id="pl_recovery" class="form-control" placeholder="1=Stressed, 5=Prime">
+                </div>
+                <button type="submit" class="btn" style="background: var(--accent); border-color: var(--accent);">Record Plant Status</button>
             </form>
         </div>
     </div>

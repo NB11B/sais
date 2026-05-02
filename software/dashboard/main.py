@@ -83,7 +83,7 @@ async def get_observations(limit: int = 20):
     finally:
         graph.storage.conn.close()
 
-from schemas import ObservationPayload
+from schemas import ObservationPayload, PlantObservationPayload
 
 @app.get("/health")
 async def health_check():
@@ -375,6 +375,39 @@ async def post_sensor_node(payload: SensorNodePayload, node_id: str = None):
         elif sensor.field_id:
             graph.add_edge(sensor.id, "DEPLOYED_IN", sensor.field_id)
         return {"status": "success", "id": sensor.id}
+    finally:
+        graph.storage.conn.close()
+
+@app.post("/api/plant/observations")
+async def post_plant_observation(payload: PlantObservationPayload):
+    graph = get_graph()
+    try:
+        # 1. Validation
+        if not graph.get_node(payload.paddock_id):
+            raise HTTPException(status_code=400, detail=f"Paddock {payload.paddock_id} does not exist")
+        
+        # 2. Add to Storage
+        graph.storage.add_plant_observation(
+            obs_id=payload.id,
+            farm_id=payload.farm_id,
+            paddock_id=payload.paddock_id,
+            timestamp=payload.timestamp,
+            forage_mass=payload.forage_mass_kg_ha,
+            cover=payload.cover_percent,
+            height=payload.height_cm,
+            recovery_score=payload.recovery_score,
+            payload=payload.model_dump()
+        )
+        
+        # 3. Create Graph Link
+        graph.add_edge(payload.paddock_id, "PLANT_CHECK", payload.id)
+        
+        # 4. Trigger Intelligence
+        from farm_twin.cards import generate_forage_balance_card, generate_plant_recovery_card
+        generate_forage_balance_card(graph, payload.farm_id, payload.paddock_id)
+        generate_plant_recovery_card(graph, payload.farm_id, payload.paddock_id)
+        
+        return {"status": "success", "id": payload.id}
     finally:
         graph.storage.conn.close()
 

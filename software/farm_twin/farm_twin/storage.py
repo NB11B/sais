@@ -40,6 +40,19 @@ class GraphStorage:
             )
         ''')
         cursor.execute('''
+            CREATE TABLE IF NOT EXISTS plant_observations (
+                id TEXT PRIMARY KEY,
+                farm_id TEXT,
+                paddock_id TEXT,
+                timestamp TEXT,
+                forage_mass REAL,
+                cover REAL,
+                height REAL,
+                recovery_score INTEGER,
+                payload_json TEXT
+            )
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS cards (
                 id TEXT PRIMARY KEY, 
                 created_at TEXT, 
@@ -176,6 +189,14 @@ class GraphStorage:
                (id, farm_id, paddock_id, timestamp, bcs, manure_score, payload_json) 
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (obs_id, farm_id, paddock_id, timestamp, bcs, manure_score, json.dumps(payload))
+        )
+        self.conn.commit()
+
+    def add_plant_observation(self, obs_id: str, farm_id: str, paddock_id: str, timestamp: str, forage_mass: float, cover: float, height: float, recovery_score: int, payload: dict):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO plant_observations (id, farm_id, paddock_id, timestamp, forage_mass, cover, height, recovery_score, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (obs_id, farm_id, paddock_id, timestamp, forage_mass, cover, height, recovery_score, json.dumps(payload))
         )
         self.conn.commit()
 

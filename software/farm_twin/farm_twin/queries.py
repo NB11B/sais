@@ -458,3 +458,109 @@ def get_source_health(graph: FarmGraph, farm_id: str, measurement_id: str):
         "evidence": [f"Last reading: {round(delta_hrs, 1)}h ago"]
     }
 
+def get_forage_balance(graph: FarmGraph, farm_id: str, paddock_id: str):
+    """
+    Calculates the supply/demand balance for a paddock.
+    PFKR-4 Supply vs PFKR-5 Demand
+    """
+    evidence = []
+    
+    # 1. Get Latest Forage Mass (Supply)
+    cursor = graph.storage.conn.cursor()
+    cursor.execute("""
+        SELECT forage_mass FROM plant_observations 
+        WHERE paddock_id = ? ORDER BY timestamp DESC LIMIT 1
+    """, (paddock_id,))
+    row = cursor.fetchone()
+    
+    if not row or row[0] is None:
+        return {"status": "insufficient_data", "evidence": ["No recent forage mass data."]}
+    
+    forage_mass = row[0]
+    evidence.append(f"Supply: {forage_mass} kg DM/ha")
+    
+    # 2. Get Paddock Area
+    paddock = graph.get_node(paddock_id)
+    # Placeholder area if no geojson: ~10 hectares
+    area_ha = 10.0
+    if paddock and paddock.get("payload", {}).get("boundary_geojson"):
+        # Real area calculation would go here
+        pass
+    evidence.append(f"Area: {area_ha} ha")
+    
+    total_supply = forage_mass * area_ha
+    
+    # 3. Get Herd Demand (PFKR-5)
+    latest_event = graph.storage.get_latest_grazing_event(paddock_id)
+    animal_count = 0
+    if latest_event and not latest_event.get("ended_at"):
+        animal_count = latest_event.get("animal_count", 0)
+    
+    if animal_count == 0:
+        return {
+            "status": "ok",
+            "evidence": evidence + ["No active herd in paddock."],
+            "grazing_days_remaining": "N/A"
+        }
+    
+    # Intake estimate: ~18kg DM/head/day for adult cattle
+    daily_intake_per_head = 18.0
+    total_daily_demand = animal_count * daily_intake_per_head
+    
+    # Residual forage target (grazing should stop when 1200 kg/ha remains)
+    residual_target = 1200.0
+    usable_supply = (forage_mass - residual_target) * area_ha
+    
+    days_remaining = max(0, round(usable_supply / total_daily_demand, 1))
+    evidence.append(f"Demand: {animal_count} animals @ {daily_intake_per_head}kg/day")
+    evidence.append(f"Usable supply: {round(usable_supply, 0)} kg DM")
+    
+    status = "ok"
+    if days_remaining < 1: status = "alert"
+    elif days_remaining < 3: status = "action"
+    elif days_remaining < 7: status = "watch"
+    
+    return {
+        "status": status,
+        "evidence": evidence,
+        "grazing_days_remaining": days_remaining,
+        "meaning": f"Approximately {days_remaining} grazing days left before reaching residual target."
+    }
+
+def get_plant_recovery_status(graph: FarmGraph, paddock_id: str):
+    """
+    Evaluates regrowth quality and height.
+    PFKR-4 / PFKR-2
+    """
+    evidence = []
+    cursor = graph.storage.conn.cursor()
+    
+    # 1. Get Latest Height and Recovery Score
+    cursor.execute("""
+        SELECT height, recovery_score, timestamp FROM plant_observations 
+        WHERE paddock_id = ? ORDER BY timestamp DESC LIMIT 1
+    """, (paddock_id,))
+    row = cursor.fetchone()
+    
+    if not row:
+        return {"status": "insufficient_data", "evidence": ["No regrowth data."]}
+        
+    height, score, ts = row
+    if height: evidence.append(f"Regrowth height: {height} cm")
+    if score: evidence.append(f"Operator recovery score: {score}/5")
+    
+    # 2. Check Rest Duration
+    latest_grazing = graph.storage.get_latest_grazing_event(paddock_id)
+    paddock_node = graph.get_node(paddock_id)
+    rest_target = paddock_node.get("payload", {}).get("rest_target_days", 45)
+    
+    status = "watch"
+    if score and score >= 4: status = "ok"
+    elif score and score <= 2: status = "action"
+    
+    return {
+        "status": status,
+        "evidence": evidence,
+        "rest_target": rest_target
+    }
+

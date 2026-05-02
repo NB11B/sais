@@ -22,12 +22,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const openWaterBtn = document.getElementById('open-water-btn');
     const waterForm = document.getElementById('water-form');
 
+    const plantModal = document.getElementById('plant-modal');
+    const openPlantBtn = document.getElementById('open-plant-btn');
+    const plantForm = document.getElementById('plant-form');
+    const plPaddockSelect = document.getElementById('pl_paddock_id');
+
     // Modal Control
     if (openLsBtn) {
         openLsBtn.onclick = (e) => {
             e.preventDefault();
             lsModal.style.display = 'block';
-            populatePaddocks();
+            populatePaddocks(lsPaddockSelect);
         };
     }
 
@@ -38,18 +43,59 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    if (openPlantBtn) {
+        openPlantBtn.onclick = (e) => {
+            e.preventDefault();
+            plantModal.style.display = 'block';
+            populatePaddocks(plPaddockSelect);
+        };
+    }
+
     // Generic close for all modals
     document.querySelectorAll('.close-modal').forEach(btn => {
         btn.onclick = () => {
             lsModal.style.display = 'none';
             waterModal.style.display = 'none';
+            plantModal.style.display = 'none';
         };
     });
 
     window.onclick = (event) => {
         if (event.target == lsModal) lsModal.style.display = 'none';
         if (event.target == waterModal) waterModal.style.display = 'none';
+        if (event.target == plantModal) plantModal.style.display = 'none';
     };
+
+    if (plantForm) {
+        plantForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const paddockId = plPaddockSelect.value;
+            const payload = {
+                schema: "sais.plant_observation.v1",
+                id: `plant-${paddockId}-${Date.now()}`,
+                farm_id: "local",
+                paddock_id: paddockId,
+                timestamp: new Date().toISOString(),
+                forage_mass_kg_ha: parseFloat(document.getElementById('pl_mass').value),
+                height_cm: parseFloat(document.getElementById('pl_height').value),
+                recovery_score: parseInt(document.getElementById('pl_recovery').value)
+            };
+
+            try {
+                const res = await fetch('/api/plant/observations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    plantModal.style.display = 'none';
+                    plantForm.reset();
+                    fetchCards();
+                    fetchObservations();
+                }
+            } catch (e) { console.error(e); }
+        };
+    }
 
     if (waterForm) {
         waterForm.onsubmit = async (e) => {
@@ -86,16 +132,19 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    async function populatePaddocks() {
+    async function populatePaddocks(selectEl) {
+        if (!selectEl) return;
         try {
             const res = await fetch('/api/graph');
             const data = await res.json();
-            lsPaddockSelect.innerHTML = '<option value="">Select Paddock...</option>';
-            data.nodes.filter(n => n.labels.includes('Paddock')).forEach(p => {
+            const paddocks = data.nodes.filter(n => n.labels.includes("Paddock"));
+            
+            selectEl.innerHTML = '<option value="">Select Paddock...</option>';
+            paddocks.forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id;
-                opt.textContent = p.name || p.id;
-                lsPaddockSelect.appendChild(opt);
+                opt.innerText = p.name;
+                selectEl.appendChild(opt);
             });
         } catch (e) { console.error(e); }
     }
