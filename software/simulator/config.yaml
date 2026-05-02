@@ -1,0 +1,23 @@
+# SAIS Simulator Configuration
+
+farm_id: local
+url: "http://localhost:8000/api/observations"
+interval_sec: 5
+
+nodes:
+  - id: soil-node-north
+    type: moisture
+    zone_id: zone-a1
+    depth_cm: 30
+    drying_rate: 0.005
+
+  - id: soil-node-south
+    type: moisture
+    zone_id: zone-b2
+    depth_cm: 15
+    drying_rate: 0.012
+
+  - id: weather-primary
+    type: weather
+    lat: -34.5
+    lng: 148.2

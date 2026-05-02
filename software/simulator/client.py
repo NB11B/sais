@@ -5,16 +5,23 @@ class TelemetryClient:
     def __init__(self, endpoint_url: str):
         self.endpoint_url = endpoint_url
         
-    def post_observation(self, node_id: str, farm_id: str, zone_id: str, measurement_id: str, layer: str, value: float, source: dict):
+    def post_observation(self, node_id: str, farm_id: str, measurement_id: str, layer: str, value: float, source: dict, 
+                         zone_id: str = None, field_id: str = None, timestamp: str = None, unit: str = None):
+        
+        if not timestamp:
+            timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
         payload = {
             "schema": "sais.observation.v1",
             "node_id": node_id,
             "farm_id": farm_id,
+            "field_id": field_id,
             "zone_id": zone_id,
-            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "timestamp": timestamp,
             "measurement_id": measurement_id,
             "layer": layer,
             "value": value,
+            "unit": unit,
             "source": source
         }
         
