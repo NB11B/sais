@@ -1,172 +1,561 @@
 # Sovereign Ag-Infrastructure Stack (SAIS)
 
-> **The Linux of the Field. The Farm is the Launchpad.**
+> **A sovereign, offline-first C4ISR platform for farm and ranch operations.**
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Status: Active Development](https://img.shields.io/badge/Status-Active%20Development-green.svg)]()
-[![Architecture: Federated Edge](https://img.shields.io/badge/Architecture-Federated%20Edge-orange.svg)]()
-[![GPU: Adreno 702 GF(48)](https://img.shields.io/badge/GPU-Adreno%20702%20GF(48)-purple.svg)]()
+[![Architecture: Offline First](https://img.shields.io/badge/Architecture-Offline%20First-orange.svg)]()
+[![Stack: FastAPI + SQLite](https://img.shields.io/badge/Stack-FastAPI%20%2B%20SQLite-purple.svg)]()
 
-SAIS is a decentralized, edge-native, open-source operating system for managing closed-loop resource environments. It is designed to run autonomously on a solar-powered, ruggedized edge node deployed in any field, ranch, or off-grid environment — with zero dependency on cloud infrastructure, corporate servers, or subscription services.
+SAIS is an open-source, edge-native command platform for farms, ranches, and closed-loop resource environments. It fuses low-cost sensors, manual farmer observations, open geospatial data, weather data, soil context, and live telemetry into a local farm digital twin.
+
+The purpose is simple:
+
+```text
+all sources
+→ farm digital twin
+→ fused intelligence
+→ farmer-facing decision cards
+→ auditable action loop
+```
+
+SAIS is being designed as the farm/ranch equivalent of a C4ISR system:
+
+| C4ISR Function | SAIS Equivalent |
+|---|---|
+| Command | Operator dashboard, Admin setup, decision cards |
+| Control | Future relays, valves, pumps, gates, and actuator workflows |
+| Communications | Sensor telemetry API, future LoRa/BLE/MQTT/serial bridges |
+| Computers | FarmGraph, SQLite, geospatial ingest, local FastAPI dashboard |
+| Intelligence | Runoff risk, water-retention alerts, future grazing and plant-stress cards |
+| Surveillance | Soil sensors, weather, tanks, livestock, cameras, and field observations |
+| Reconnaissance | Farmer field walks, manual notes, satellite/geospatial layers |
 
 **The farmer owns the hardware. The farmer owns the data. The farmer owns the intelligence.**
 
 ---
 
-## The Problem
+## Current Status
 
-The current agricultural technology stack is built against the farmer:
+SAIS now has a working local vertical slice:
 
-- **Input monopolies** control seeds, chemicals, and commodity pricing simultaneously, trapping farmers in a permanent margin squeeze.
-- **Cloud-dependent farm management software** extracts operational data from farmers and sells the aggregated intelligence back to the market — often to the same corporations squeezing the farmer's margins.
-- **Centralized architectures** create single points of failure: if the WAN link goes down, the farm goes dark.
-- **Legacy carbon markets** are paralyzed by greenwashing scandals and prohibitively expensive manual verification, locking farmers out of ecological finance.
+```text
+open geospatial data
++ farm profile / GeoJSON boundaries
++ live sensor observations
+→ SQLite-backed FarmGraph
+→ intelligence cards
+→ Operator Feed, GIS Twin, Knowledge Graph, and Admin Setup UI
+```
 
-SAIS is the engineering alternative. It is not a protest. It is a replacement.
+Implemented so far:
 
----
+| Work Package | Status | What exists |
+|---|---:|---|
+| WP2: Geospatial Ingest | Implemented | Offline DEM/SSURGO processing, slope, aspect, flow accumulation, runoff risk, manifest output |
+| WP3: Farm Digital Twin Core Graph | Implemented | Typed graph model, SQLite storage, geospatial manifest ingest, observation ingest, card generation |
+| WP3.5: Verification Harness | Implemented | Persistence tests, degraded-state tests, geospatial tests, end-to-end WP2 to WP3 test |
+| WP4: Dashboard/API | Implemented | FastAPI dashboard, Operator Feed, API routes, seeded demo database |
+| WP5: Live Sensor Ingestion | Implemented | `POST /api/observations`, direct payload ingest, card regeneration |
+| WP5.5: Ingestion Reliability | Implemented | Pydantic validation, duplicate handling, card idempotency, `/health`, concurrency tests |
+| WP8: Admin Setup and Layer Control | Implemented MVP | Admin setup wizard, farm CRUD endpoints, GeoJSON boundary input, GIS layer toggles |
 
-## The Solution: The Sovereign Node
+Not yet implemented:
 
-SAIS is being developed and deployed in three distinct phases to ensure hardware reliability and data integrity before introducing complex intelligence layers:
+```text
+real ESP32/UNO Q field firmware client
+signed node telemetry
+LoRa/BLE/MQTT field bridge
+weather source registry
+source/layer registry
+interactive polygon drawing
+offline local tile package
+actuator control
+cryptographic audit ledger
+LLM/RAG layer
+```
 
-1. **Phase 1: Edge Devices & Nodes (Active)** — Physical hardware assembly, RTOS firmware, sensor integration, and basic DDS mesh networking.
-2. **Phase 2: Intelligence Platform (Pending)** — SCADA/Compute layer, C2 Dashboard, OADA API, and the Cryptographic Auditor (Proof of Stewardship).
-3. **Phase 3: AI & Machine Learning (Deferred)** — On-device LLM, RAG knowledge graph, and predictive TinyML inference.
-
-A **Sovereign Node** is a self-contained, solar-powered edge controller that manages a farm's complete digital nervous system without ever needing to contact a central server.
-
-### Hardware Architecture
-
-The node uses a **Dual-Core Edge Controller** design, optimized for the [Arduino UNO Q](docs/HARDWARE_SPEC.md) (STM32U585 + QRB2210) to provide a complete, low-cost ($165) entry point:
-
-| Layer | Component | Role |
-|---|---|---|
-| **Controller (Real-Time)** | STM32U585 / ESP32-S3 | Deterministic I/O: gate motors, pumps, livestock sensors, nutrient dosing |
-| **SCADA/Compute (Intelligence)** | QRB2210 / i.MX 8M | Containerized logic: MQTT broker, DDS middleware, ZKP Auditor, C2 Dashboard |
-| **GPU Acceleration (Validated)** | **Jetson Nano (Maxwell, CUDA sm_53)** | NGC GF(48) quantum-inspired kernels — validated in production, ~100x speedup |
-| **GPU Acceleration (Roadmap)** | Adreno 702 (Uno Q, OpenCL) | Same kernels via OpenCL port — enables single-board $165 node |
-| **Enclosure** | IP67 die-cast, fanless | Field-deployable, no moving parts, no consumables |
-| **Storage** | Onboard eMMC | No SD cards; rated for continuous write cycles |
-| **Power** | Solar + LiFePO4 battery | Off-grid operation indefinitely |
-
-### The Intelligence Layer (Phase 3 Deferred)
-
-*Note: The AI/ML components of the Intelligence Layer are deferred to Phase 3. The current focus is on establishing the deterministic hardware and data infrastructure required to feed these models.*
-
-When implemented, SAIS will solve the cognitive overload of traditional SCADA systems by acting as an **active farm intelligence agent**. The `sais-intelligence` container will run entirely at the edge:
-- **Edge Inference (TinyML):** Runs anomaly detection and predictive maintenance models on raw telemetry.
-- **Local Knowledge Graph (RAG):** A vector database containing agronomic best practices, historical logs, and equipment manuals.
-- **On-Device LLM:** Synthesizes anomalies and RAG context into natural-language alerts for the farmer, explaining every automated decision it makes.
-
-### Autonomous Drone Swarms (Artificial Bats)
-
-SAIS extends its intelligence to the sky. By integrating the [Adaptive Engine's PSMSL core](docs/ADAPTIVE_AUDIO_INTEGRATION.md), SAIS enables **autonomous, decentralized drone swarms operating as artificial bats**. 
-- Drones use **ultrasonic echolocation** (10ms FM chirps) to navigate GPS-denied environments like dense crop canopies or indoor habitats.
-- The swarm coordinates via a peer-to-peer DDS mesh, using acoustic Grassmann curvature to maintain formation without a central ground station.
-- The swarm acts as a collective ultrasonic sensor array for non-contact soil moisture and biomass estimation.
-
-### NGC Quantum-Inspired Edge GPU
-
-SAIS integrates the [NGC-Quantum-CUDA / GeoFlow kernels](docs/NGC_QUANTUM_INTEGRATION.md) to deploy quantum-inspired GF(48) geometric computation directly at the edge. The **Jetson Nano** is the validated production platform (CUDA sm_53, tested), delivering ~100x speedup over CPU baselines today. The **Uno Q's Adreno 702** is the roadmap target via an OpenCL port, enabling the same capability in a single $165 board.
-
-| Component | Role | NGC Quantum Contribution |
-|---|---|---|
-| STM32U585 MCU (Uno Q) | Real-time sensor ingestion | Basic PSMSL anomaly detection |
-| Cortex-A57 (Jetson Nano) | Intelligence Layer orchestration | GeoFlow pipeline management |
-| **Maxwell GPU (Jetson Nano)** | **Validated CUDA acceleration** | **GF(48) packed kernels — tested in production, ~100x speedup** |
-| **Adreno 702 (Uno Q)** | **Roadmap OpenCL acceleration** | **Same kernels via OpenCL port — $165 all-in-one node** |
-
-The Leibniz-Bocker curvature metric ($\Omega$) produced by the GPU forms the mathematically provable basis for the **Proof of Stewardship** report, signed by the Auditor Container for the Carbon-Plus bond market.
-
-### The Auditor Container
-
-Every sensor reading and actuator command is cryptographically signed using a private key stored in the node's secure enclave. These records form an **immutable ledger of stewardship**.
-
-This ledger is the foundation of the **"Proof of Stewardship" report** — the verified ecological data that financial institutions need to issue Carbon-Plus bonds, bypassing the legacy MRV industry entirely.
+The current implementation is intentionally local, inspectable, and offline-first.
 
 ---
 
-## Extended Use Cases
+## System Architecture
 
-The Sovereign Node is a **universal closed-loop resource management platform**. The same hardware, firmware, and DDS mesh that manages a cattle ranch applies directly to any environment requiring autonomous, verifiable, offline-capable monitoring and control. Each use case has a dedicated integration plan in the `docs/` directory.
-
-| Domain | Pain Point Solved | Key Sensors | Integration Plan |
-|---|---|---|---|
-| **Regenerative Soil Health** | Invisible soil biology crashes; over-application of inputs | SCD41 CO2 (respiration), DS18B20, Brix | [REGEN_AG_SOIL.md](docs/REGEN_AG_SOIL.md) |
-| **Aquaculture & Water Systems** | Dissolved oxygen crashes causing fish kills | Atlas Scientific EZO-DO, EZO-pH, DS18B20 | [EXT_AQUACULTURE.md](docs/EXT_AQUACULTURE.md) |
-| **Apiary (Beehive) Monitoring** | Undetected swarming and colony collapse | HX711 load cell, INMP441 mic (PSMSL), BME280 | [EXT_APIARY.md](docs/EXT_APIARY.md) |
-| **Precision Irrigation** | Overwatering and nutrient leaching | Capacitive soil moisture array, flow meter, solenoid relay | [EXT_IRRIGATION.md](docs/EXT_IRRIGATION.md) |
-| **Predator Detection & Wildlife** | Livestock predation; labor-intensive monitoring | RCWL-0516 radar, INMP441 mic array, vision AI | [EXT_WILDLIFE.md](docs/EXT_WILDLIFE.md) |
-| **Grain Storage & Post-Harvest** | Invisible hot spots and mold causing spoilage | DS18B20 temperature cable, SCD41 CO2, aeration relay | [EXT_GRAIN.md](docs/EXT_GRAIN.md) |
-| **Controlled Environment Ag (CEA)** | Suboptimal VPD and DLI reducing yields | SCD41 CO2, BME280, VEML7700 light sensor | [EXT_CEA.md](docs/EXT_CEA.md) |
-| **Equine Performance** | Undetected lameness and overtraining | ISM330DHCX IMU (PSMSL), MLX90640 thermal, BLE HR | [EXT_EQUINE.md](docs/EXT_EQUINE.md) |
-| **Water Rights & Watershed** | Compliance reporting and nutrient runoff | Ultrasonic flow meter, EZO-Turbidity, EZO-Nitrate | [EXT_WATERSHED.md](docs/EXT_WATERSHED.md) |
+```text
+                ┌──────────────────────────┐
+                │   Open Geospatial Data    │
+                │ DEM, SSURGO, hydrology    │
+                └─────────────┬────────────┘
+                              │
+                              ▼
+                ┌──────────────────────────┐
+                │ Geospatial Ingest Pipeline│
+                │ slope, aspect, flow risk │
+                └─────────────┬────────────┘
+                              │ manifest.json
+                              ▼
+┌───────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
+│ Admin Setup   │ ──▶ │ SQLite FarmGraph      │ ◀── │ Live Observations     │
+│ boundaries,   │     │ nodes, edges, cards,  │     │ /api/observations     │
+│ zones, nodes  │     │ observations          │     │ sensors/weather/manual│
+└───────────────┘     └──────────┬───────────┘     └──────────────────────┘
+                                 │
+                                 ▼
+                    ┌─────────────────────────┐
+                    │ Intelligence Card Engine │
+                    │ water retention now,     │
+                    │ grazing/weather later    │
+                    └──────────┬──────────────┘
+                               │
+                               ▼
+        ┌────────────────────────────────────────────────────┐
+        │ Dashboard                                           │
+        │ Operator Feed | GIS Twin | Knowledge Graph | Admin  │
+        └────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Farm-to-Orbit
+## Main Dashboard Views
 
-A farm operating in a high-variability, off-grid environment is mathematically identical to a lunar greenhouse. The same engineering constraints apply: extreme latency tolerance, resource scarcity management, zero dependency on external infrastructure, and cryptographically verifiable operational data.
+### Operator Feed
 
-Every hour a Sovereign Node spends in a field is a stress test that validates its readiness for off-earth deployment. SAIS is being built for the farm. It is being designed for orbit.
+Daily decision cockpit. Shows current intelligence cards, latest observations, status, evidence chains, and suggested inspections.
+
+Default route:
+
+```text
+/
+```
+
+### GIS Twin
+
+Spatial farm view. Renders farm boundaries, fields, management zones, paddocks, and sensor markers using GeoJSON stored in the FarmGraph.
+
+Route:
+
+```text
+/map
+```
+
+### Knowledge Graph
+
+Semantic and audit/debug view. Shows how farms, fields, zones, sensors, observations, measurements, geospatial layers, and cards connect.
+
+Route:
+
+```text
+/network
+```
+
+### Admin Setup
+
+Farm configuration interface. Used to define farm identity, boundaries, fields, zones, paddocks, and sensor nodes without manually editing seed files.
+
+Route:
+
+```text
+/admin
+```
+
+---
+
+## Quick Start: Dashboard Demo
+
+From the repository root:
+
+```bash
+cd software/dashboard
+pip install -r requirements.txt
+python seed_db.py
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+Then open:
+
+```text
+http://localhost:8000
+```
+
+Useful routes:
+
+```text
+http://localhost:8000/          Operator Feed
+http://localhost:8000/map       GIS Twin
+http://localhost:8000/network   Knowledge Graph
+http://localhost:8000/admin     Admin Setup
+http://localhost:8000/health    API health check
+```
+
+---
+
+## Live Sensor Observation API
+
+SAIS accepts live telemetry through:
+
+```text
+POST /api/observations
+```
+
+Example `sais.observation.v1` payload:
+
+```json
+{
+  "schema": "sais.observation.v1",
+  "node_id": "soil-node-001",
+  "farm_id": "local",
+  "field_id": "field-a",
+  "zone_id": "zone-a1",
+  "timestamp": "2026-05-02T12:00:00Z",
+  "measurement_id": "soil.moisture.vwc",
+  "layer": "SoilPhysics",
+  "value": 0.21,
+  "unit": "m3/m3",
+  "measurement_basis": "direct",
+  "confidence": "medium",
+  "source": {
+    "type": "sensor",
+    "sensor_model": "simulated-capacitive-probe",
+    "depth_cm": 30
+  }
+}
+```
+
+Minimal curl example:
+
+```bash
+curl -X POST http://localhost:8000/api/observations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "schema": "sais.observation.v1",
+    "node_id": "soil-node-001",
+    "farm_id": "local",
+    "field_id": "field-a",
+    "zone_id": "zone-a1",
+    "timestamp": "2026-05-02T12:00:00Z",
+    "measurement_id": "soil.moisture.vwc",
+    "layer": "SoilPhysics",
+    "value": 0.21,
+    "unit": "m3/m3",
+    "measurement_basis": "direct",
+    "confidence": "medium"
+  }'
+```
+
+The API validates the payload, stores the observation, updates the graph, and regenerates applicable decision cards.
+
+---
+
+## Admin Farm Configuration API
+
+The Admin UI uses the same graph-backed endpoints that live setup workflows will use.
+
+```text
+GET  /api/farm/profile
+PUT  /api/farm/profile
+POST /api/farm/fields
+PUT  /api/farm/fields/{field_id}
+POST /api/farm/zones
+PUT  /api/farm/zones/{zone_id}
+POST /api/farm/paddocks
+PUT  /api/farm/paddocks/{paddock_id}
+POST /api/farm/sensor-nodes
+PUT  /api/farm/sensor-nodes/{node_id}
+```
+
+Admin changes write directly to the FarmGraph SQLite database. The GIS Twin and Knowledge Graph read from the same state.
+
+---
+
+## Offline Geospatial Ingest Pipeline
+
+The geospatial pipeline is designed as a provisioning pipeline that runs on a laptop or setup machine. This keeps heavy GIS dependencies off embedded edge nodes.
+
+Location:
+
+```text
+scripts/geospatial_ingest/
+```
+
+Core modules:
+
+| File | Purpose |
+|---|---|
+| `terrain.py` | Computes slope, aspect, and flow accumulation from a projected DEM |
+| `soils.py` | Rasterizes SSURGO-style soil polygons into hydrologic group grids |
+| `intelligence.py` | Produces heuristic runoff risk from slope, soil group, and flow accumulation |
+| `manifest.py` | Writes a structured geospatial manifest documenting derived layers and assumptions |
+| `pipeline.py` | Orchestrates the full provisioning workflow |
+
+The runoff risk layer is a heuristic susceptibility index, not a certified hydrologic model.
+
+---
+
+## FarmGraph Core
+
+Location:
+
+```text
+software/farm_twin/
+```
+
+The FarmGraph stores:
+
+```text
+Farm
+Field
+ManagementZone
+Paddock
+SensorNode
+Measurement
+Observation
+GeospatialLayer
+Card
+```
+
+Core graph edges include:
+
+```text
+CONTAINS
+DEPLOYED_IN
+MEASURES
+PRODUCES
+INFORMS
+HAS_LAYER
+```
+
+The storage backend is intentionally simple:
+
+```text
+SQLite nodes table
+SQLite edges table
+SQLite observations table
+SQLite cards table
+```
+
+No external graph database is required.
+
+---
+
+## Testing
+
+Recommended test commands from the repository root:
+
+```bash
+# Farm Twin tests
+PYTHONPATH=./software/farm_twin pytest software/farm_twin/tests -v
+
+# Geospatial ingest tests
+pytest scripts/geospatial_ingest/tests -v
+
+# End-to-end WP2 to WP3 chain
+PYTHONPATH=./software/farm_twin pytest tests/e2e -v
+
+# Dashboard/API tests
+cd software/dashboard
+PYTHONPATH=../farm_twin pytest -v
+```
+
+On PowerShell, use:
+
+```powershell
+$env:PYTHONPATH="./software/farm_twin"
+pytest software/farm_twin/tests -v
+```
 
 ---
 
 ## Repository Structure
 
-```
+```text
 sais/
 ├── docs/
-│   ├── ENGINEERING_GUIDANCE.md       # Core measurement-to-meaning principles and MVP focus
-│   ├── ARCHITECTURE.md               # Full system architecture reference
-│   ├── HARDWARE_SPEC.md              # Hardware BOM and enclosure spec (UNO Q focus)
-│   ├── SCADA_SECURITY_SPEC.md        # NASA Life-Support Grade security spec
-│   ├── SENSOR_PACKAGES.md            # Sensor package definitions (Packages 1–8)
-│   ├── DRONE_SWARM_CAPABILITIES.md   # Ultrasonic echolocation swarm architecture
-│   ├── ADAPTIVE_AUDIO_INTEGRATION.md # PSMSL Adaptive Engine integration plan
-│   ├── NGC_INTEGRATION_PLAN.md       # NGC GeoFlow kernel integration plan
-│   ├── NGC_QUANTUM_INTEGRATION.md    # GF(48) quantum-inspired GPU integration
-│   ├── REGEN_AG_SOIL.md              # Extension: Regenerative Soil Health Integration
-│   ├── EXT_AQUACULTURE.md            # Extension: Aquaculture & Water Systems
-│   ├── EXT_APIARY.md                 # Extension: Apiary (Beehive) Monitoring
-│   ├── EXT_IRRIGATION.md             # Extension: Precision Irrigation
-│   ├── EXT_WILDLIFE.md               # Extension: Predator Detection & Wildlife
-│   ├── EXT_GRAIN.md                  # Extension: Grain Storage & Post-Harvest
-│   ├── EXT_CEA.md                    # Extension: Controlled Environment Ag (CEA)
-│   ├── EXT_EQUINE.md                 # Extension: Equine Performance
-│   └── EXT_WATERSHED.md              # Extension: Water Rights & Watershed Monitoring
+│   ├── SAIS_UI_ARCHITECTURE.md
+│   ├── WP6_SENSOR_SIM_ADMIN_SETUP_PLAN.md
+│   ├── ONTOLOGY_REGEN_AG.md
+│   ├── FARMER_ACTIVITY_OVERLAY.md
+│   ├── SENSOR_DEPLOYMENT_MAP.md
+│   ├── ARCHITECTURE.md
+│   ├── HARDWARE_SPEC.md
+│   └── ...
+├── scripts/
+│   └── geospatial_ingest/
+│       ├── terrain.py
+│       ├── soils.py
+│       ├── intelligence.py
+│       ├── manifest.py
+│       ├── pipeline.py
+│       └── tests/
+├── software/
+│   ├── farm_twin/
+│   │   ├── farm_twin/
+│   │   │   ├── graph.py
+│   │   │   ├── storage.py
+│   │   │   ├── ingest_geospatial.py
+│   │   │   ├── ingest_observation.py
+│   │   │   ├── queries.py
+│   │   │   └── cards.py
+│   │   └── tests/
+│   └── dashboard/
+│       ├── main.py
+│       ├── seed_db.py
+│       ├── schemas.py
+│       ├── templates/
+│       │   ├── index.html
+│       │   ├── map.html
+│       │   ├── network.html
+│       │   └── admin.html
+│       └── static/
+│           ├── app.js
+│           ├── map_layers.js
+│           ├── admin.js
+│           └── style.css
+├── tests/
+│   └── e2e/
 ├── firmware/
-│   ├── components/
-│   │   └── adaptive-engine/          # PSMSL core for structural/acoustic analysis
-│   └── README.md
-├── hardware/                         # Enclosure designs, PCB schematics, BOM
-├── software/                         # Containerized software stack
-├── scripts/                          # Deployment, provisioning, and OTA scripts
-├── CONTRIBUTING.md                   # How to contribute
-├── CODE_OF_CONDUCT.md                # Community standards
-├── SECURITY.md                       # Security policy and responsible disclosure
-└── LICENSE                           # GNU AGPL v3
+├── hardware/
+├── task.md
+├── CONTRIBUTING.md
+├── SECURITY.md
+└── LICENSE
 ```
 
 ---
 
-## Engineering Roadmap
+## Design Principles
 
-### Sprint 1: "Iron" — Gateway Hardware
-**Deliverable:** A prototype Sovereign Node (UNO Q) in an IP67 enclosure, validated for 30 days of continuous off-grid operation.
+### Offline first
 
-### Sprint 2: "Plumbing" — DDS/MQTT Mesh
-**Deliverable:** A functional mesh of three Sovereign Nodes communicating without a server, surviving a complete network blackout, and autonomously executing an irrigation cycle.
+The farm must remain operational without internet access. Cloud services may be optional enrichments, never core dependencies.
 
-### Sprint 3: "Sovereignty" — The Auditor Container
-**Deliverable:** A locally hosted C2 Dashboard rendering a cryptographically signed "Proof of Stewardship" report from live node data.
+### Low cost first
+
+Prefer, in order:
+
+```text
+open public data
+manual farmer observation
+low-cost sensors
+existing farm equipment
+optional advanced modules
+```
+
+### Measurement to meaning
+
+SAIS does not begin with sensors. It begins with farmer questions:
+
+```text
+Farm question
+→ meaningful measurement
+→ cheapest source
+→ confidence level
+→ recommended inspection or action
+```
+
+### Evidence before recommendation
+
+Every decision card should show its evidence chain.
+
+### Same path for demo and live
+
+Simulation, Admin setup, and real field hardware should all use the same APIs and graph state.
+
+No demo-only data formats.
+
+---
+
+## Near-Term Roadmap
+
+### WP8.5: Admin Reliability and Offline UI Hardening
+
+Planned next hardening pass:
+
+```text
+add Paddock UI form
+add sensor latitude/longitude entry
+validate parent IDs
+validate path ID versus payload ID
+add Admin API tests
+move Leaflet assets local for offline use
+add backend GeoJSON validation
+```
+
+### WP9: Source Registry and Weather Observations
+
+Planned all-source expansion:
+
+```text
+source_registry.yaml
+layer_registry.yaml
+weather observations as sais.observation.v1
+manual rainfall entry
+optional open weather source
+WeatherContextCard
+SensorHealthCard
+FarmSetupCompletenessCard
+```
+
+### WP10: Sensor Simulator and Live Hardware Bridge
+
+Planned live-transfer bridge:
+
+```text
+sensor simulator CLI
+normal, drydown, recovery, invalid, burst profiles
+weather station simulator
+ESP32/UNO Q firmware client path
+future signed telemetry
+```
+
+---
+
+## Hardware Direction
+
+SAIS is intended to support a tiered hardware path:
+
+| Tier | Purpose |
+|---|---|
+| Laptop/setup machine | Geospatial provisioning and dashboard development |
+| ESP32/STM32-class controller | Low-cost real-time sensor and actuator node |
+| Arduino UNO Q / Linux edge node | Integrated edge compute and controller target |
+| Raspberry Pi / CM4 / similar | Practical local dashboard and gateway target |
+| Jetson / GPU node | Optional advanced acceleration and research modules |
+
+Current repository work is focused on the software, geospatial, dashboard, and data model layers. Real hardware firmware integration is the next major implementation track.
+
+---
+
+## Security Posture
+
+SAIS is not yet a certified safety system.
+
+Current security posture:
+
+```text
+local-first execution
+validated API payloads
+SQLite persistence
+no required cloud dependency
+no arbitrary external URL fetch endpoint
+clear separation between planned research modules and active implementation
+```
+
+Future security work:
+
+```text
+signed node telemetry
+node identity registry
+anti-replay counters
+cryptographic audit records
+role-based local admin access
+field-safe actuator authorization
+```
 
 ---
 
 ## Contributing
 
-SAIS is an open project. Contributions are welcome across all layers: firmware, hardware design, containerized software, documentation, and protocol specification.
+SAIS is an open project. Contributions are welcome across firmware, hardware design, geospatial processing, dashboard UI, FarmGraph modeling, sensor integrations, documentation, and protocol specification.
 
 Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) before submitting a pull request.
 
@@ -174,10 +563,12 @@ Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) before submitting a pull reques
 
 ## License
 
-SAIS is released under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. This means any derivative work — including network-deployed services — must also be released under the same license. This is a deliberate choice: it prevents corporations from taking the open-source core, wrapping it in a proprietary service, and selling it back to the farmers it was built to liberate.
+SAIS is released under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+This means derivative work, including network-deployed services, must also be released under the same license. This is deliberate: SAIS is intended to remain farmer-owned, inspectable, and resistant to proprietary enclosure.
 
 See [`LICENSE`](LICENSE) for the full text.
 
 ---
 
-*Nathanael J. Bocker, 2026 all rights reserved*
+Copyright © 2026 Nathanael J. Bocker. Licensed under AGPL-3.0.
