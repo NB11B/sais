@@ -31,3 +31,20 @@ class TelemetryClient:
             return True, response.json()
         except Exception as e:
             return False, str(e)
+
+    def post_hello(self, node_id: str, capabilities: list, rssi: int, battery: int, firmware: str = None, hardware: str = None):
+        url = self.endpoint_url.replace("/api/observations", "/api/nodes/hello")
+        payload = {
+            "id": node_id,
+            "capabilities": capabilities,
+            "rssi": rssi,
+            "battery": battery,
+            "firmware_version": firmware,
+            "hardware_family": hardware
+        }
+        try:
+            response = httpx.post(url, json=payload, timeout=5.0)
+            response.raise_for_status()
+            return True, response.json()
+        except Exception as e:
+            return False, str(e)

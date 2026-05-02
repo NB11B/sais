@@ -34,8 +34,42 @@ def main():
             print(f"[{addr[0]}] Received: {message}")
             
             parts = [p.strip() for p in message.split(",")]
+            
+            # WP19.5: Support HELLO discovery packets
+            if parts[0] == "HELLO":
+                if len(parts) < 7:
+                    print(f"[!] Malformed HELLO from {addr[0]}")
+                    continue
+                
+                node_id = parts[1]
+                firmware = parts[2]
+                hardware = parts[3]
+                capabilities = parts[4].split("|")
+                try:
+                    battery = int(parts[5])
+                    rssi = int(parts[6])
+                except ValueError:
+                    print(f"[!] Non-numeric metrics in HELLO from {addr[0]}")
+                    continue
+                
+                success, result = client.post_hello(
+                    node_id=node_id,
+                    capabilities=capabilities,
+                    rssi=rssi,
+                    battery=battery,
+                    firmware=firmware,
+                    hardware=hardware
+                )
+                
+                if success:
+                    print(f"[+] Node Discovery Forwarded: {node_id}")
+                else:
+                    print(f"[-] Discovery Forward Failed: {result}")
+                continue
+
+            # Standard Telemetry Path
             if len(parts) < 3:
-                print(f"[!] Malformed message from {addr[0]}")
+                print(f"[!] Malformed telemetry from {addr[0]}")
                 continue
                 
             node_id = parts[0]
