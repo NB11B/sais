@@ -43,6 +43,9 @@ class GraphStorage:
                 created_at TEXT, 
                 card_type TEXT, 
                 status TEXT, 
+                action_status TEXT DEFAULT 'pending',
+                notes TEXT,
+                updated_at TEXT,
                 payload_json TEXT
             )
         ''')
@@ -67,6 +70,15 @@ class GraphStorage:
                 payload = json.loads(row[1]) if row[1] else {}
                 layer = payload.get("layer", "Unknown")
                 cursor.execute("UPDATE observations SET layer = ? WHERE id = ?", (layer, obs_id))
+            self.conn.commit()
+
+        # 3. Check for card action columns
+        cursor.execute("PRAGMA table_info(cards)")
+        card_cols = {row[1] for row in cursor.fetchall()}
+        if "action_status" not in card_cols:
+            cursor.execute("ALTER TABLE cards ADD COLUMN action_status TEXT DEFAULT 'pending'")
+            cursor.execute("ALTER TABLE cards ADD COLUMN notes TEXT")
+            cursor.execute("ALTER TABLE cards ADD COLUMN updated_at TEXT")
             self.conn.commit()
 
     def add_node(self, node_id: str, node_type: str, payload: dict):
@@ -98,6 +110,14 @@ class GraphStorage:
         cursor.execute(
             "INSERT OR REPLACE INTO cards (id, created_at, card_type, status, payload_json) VALUES (?, ?, ?, ?, ?)",
             (card_id, created_at, card_type, status, json.dumps(payload))
+        )
+        self.conn.commit()
+
+    def update_card_action(self, card_id: str, action_status: str, notes: str, updated_at: str):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE cards SET action_status = ?, notes = ?, updated_at = ? WHERE id = ?",
+            (action_status, notes, updated_at, card_id)
         )
         self.conn.commit()
         

@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+from datetime import datetime, timezone
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -40,11 +41,29 @@ async def get_cards():
     try:
         cursor = graph.storage.conn.cursor()
         # Fetch all cards sorted by newest
-        cursor.execute("SELECT payload_json FROM cards ORDER BY created_at DESC")
+        cursor.execute("SELECT payload_json, action_status, notes, updated_at, id FROM cards ORDER BY created_at DESC")
         cards = []
         for row in cursor.fetchall():
-            cards.append(json.loads(row[0]))
+            card = json.loads(row[0])
+            card["action_status"] = row[1]
+            card["notes"] = row[2]
+            card["updated_at"] = row[3]
+            card["id"] = row[4]
+            cards.append(card)
         return {"cards": cards}
+    finally:
+        graph.storage.conn.close()
+
+@app.post("/api/cards/{card_id}/action")
+async def update_card_action(card_id: str, data: dict):
+    graph = get_graph()
+    try:
+        status = data.get("status", "pending")
+        notes = data.get("notes", "")
+        now = datetime.now(timezone.utc).isoformat()
+        
+        graph.storage.update_card_action(card_id, status, notes, now)
+        return {"status": "success", "card_id": card_id}
     finally:
         graph.storage.conn.close()
 

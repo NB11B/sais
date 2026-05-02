@@ -28,6 +28,10 @@ document.addEventListener('DOMContentLoaded', () => {
             data.cards.forEach(card => {
                 const el = document.createElement('div');
                 el.className = 'card-item';
+                if (card.action_status === 'resolved') {
+                    el.style.opacity = '0.5';
+                    el.style.pointerEvents = 'none';
+                }
                 
                 const statusClass = `status-${card.status}`;
                 const statusText = card.status.replace('_', ' ');
@@ -40,6 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     evidenceHtml += '</ul>';
                 }
+
+                const notesHtml = card.notes ? `<div class="card-notes-display"><strong>Farmer Note:</strong> ${card.notes}</div>` : '';
                 
                 el.innerHTML = `
                     <div class="card-header">
@@ -52,6 +58,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">EVIDENCE CHAIN</div>
                         ${evidenceHtml}
                     </div>
+                    ${notesHtml}
+                    <div class="card-actions">
+                        <button class="btn-action btn-primary" onclick="takeAction('${card.id}', 'resolved')">Resolve</button>
+                        <button class="btn-action" onclick="toggleNotes('${card.id}')">Add Note</button>
+                    </div>
+                    <div id="notes-area-${card.id}" class="card-notes-area" style="display:none;">
+                        <textarea class="card-notes-input" placeholder="Enter field observation..."></textarea>
+                        <button class="btn-action btn-primary" onclick="saveNote('${card.id}')">Save Note</button>
+                    </div>
                 `;
                 cardsContainer.appendChild(el);
             });
@@ -60,6 +75,42 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error fetching cards', err);
         }
     }
+
+    // Card Actions
+    window.takeAction = async (cardId, status) => {
+        try {
+            await fetch(`/api/cards/${cardId}/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            fetchCards();
+        } catch (err) {
+            console.error('Error taking action', err);
+        }
+    };
+
+    window.toggleNotes = (cardId) => {
+        const area = document.getElementById(`notes-area-${cardId}`);
+        area.style.display = area.style.display === 'none' ? 'block' : 'none';
+    };
+
+    window.saveNote = async (cardId) => {
+        const area = document.getElementById(`notes-area-${cardId}`);
+        const input = area.querySelector('textarea');
+        const notes = input.value;
+        
+        try {
+            await fetch(`/api/cards/${cardId}/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notes })
+            });
+            fetchCards();
+        } catch (err) {
+            console.error('Error saving note', err);
+        }
+    };
 
     // Fetch Observations
     async function fetchObservations() {
