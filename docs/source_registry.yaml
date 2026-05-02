@@ -1,38 +1,60 @@
 # SAIS Source Registry
 # Defines all trusted input classes for the Farm Twin
+# Aligned with PFKR-8: Source Health and Confidence
 
 sources:
   - id: direct_sensor
     name: Direct Hardware Sensor
     description: Physical telemetry from ESP32 or edge nodes
     trust_level: high
+    latency: realtime
+    cost_profile: low
+    operator_notes: "Physical sensor; requires calibration and last-seen checks."
 
   - id: manual_observation
     name: Manual Farmer Observation
     description: Human-entered data from the field
     trust_level: medium
+    latency: manual
+    cost_profile: low
+    operator_notes: "Human data; subject to reporting bias and latency."
 
   - id: open_weather
     name: OpenWeather API
     description: External weather telemetry (Temperature, Rainfall, etc.)
     trust_level: high
+    latency: hourly
+    cost_profile: low
+    operator_notes: "API-driven; reliable for regional context but lacks micro-climate precision."
 
   - id: open_geospatial
     name: Open Geospatial Data
     description: Public GIS layers (DEM, Soil Maps)
     trust_level: high
+    latency: static
+    cost_profile: low
+    operator_notes: "Stable foundation data."
 
   - id: derived
     name: Derived Intelligence
     description: Data produced by SAIS intelligence rules (Risk Layers)
     trust_level: high
+    latency: realtime
+    cost_profile: low
+    operator_notes: "System-generated based on evidence fusion."
 
   - id: proxy
     name: Proxy Sensor
     description: Estimated value from nearby sensors
     trust_level: low
+    latency: realtime
+    cost_profile: low
+    operator_notes: "Use only as a trend indicator when primary sensors are offline."
 
   - id: lab_import
     name: Lab Import
     description: CSV or PDF import from soil/water labs
     trust_level: high
+    latency: manual
+    cost_profile: high
+    operator_notes: "High precision; very high latency."

@@ -1,58 +1,73 @@
 # SAIS Layer Registry
 # Defines all geospatial and logical overlays for the C2 Dashboard
+# Aligned with PFKR Framework
 
 layers:
   - id: farm_boundary
     name: Farm Boundary
     category: infrastructure
     default_color: "#10b981" # Green
+    knowledge_requirements: ["PFKR-6"]
 
   - id: fields
     name: Fields
     category: infrastructure
     default_color: "#3b82f6" # Blue
+    knowledge_requirements: ["PFKR-6"]
 
   - id: management_zones
     name: Management Zones
     category: infrastructure
     default_color: "#06b6d4" # Cyan
+    knowledge_requirements: ["PFKR-6"]
 
   - id: paddocks
     name: Paddocks
     category: infrastructure
     default_color: "#f59e0b" # Amber
+    knowledge_requirements: ["PFKR-2", "PFKR-6"]
 
   - id: sensor_nodes
     name: Sensor Nodes
     category: hardware
     default_color: "#ef4444" # Red
+    knowledge_requirements: ["PFKR-8"]
 
   - id: soil_moisture
     name: Soil Moisture
     category: telemetry
     default_color: "#8b5cf6" # Violet
+    knowledge_requirements: ["PFKR-1", "PFKR-3"]
+    operator_meaning: "Root zone hydration and infiltration status."
 
   - id: rainfall
     name: Rainfall
     category: weather
     default_color: "#0ea5e9" # Sky Blue
+    knowledge_requirements: ["PFKR-1", "PFKR-7"]
+    operator_meaning: "Atmospheric hydration input."
 
   - id: weather
     name: General Weather
     category: weather
     default_color: "#f97316" # Orange
+    knowledge_requirements: ["PFKR-7"]
 
   - id: runoff_risk
     name: Runoff Risk
     category: intelligence
     default_color: "#dc2626" # Red-600
+    knowledge_requirements: ["PFKR-1"]
+    operator_meaning: "Likelihood of water loss and erosion due to poor infiltration."
 
   - id: flow_accumulation
     name: Flow Accumulation
     category: geospatial
     default_color: "#1d4ed8" # Blue-700
+    knowledge_requirements: ["PFKR-1"]
 
   - id: manual_observations
     name: Manual Observations
     category: telemetry
     default_color: "#eab308" # Yellow
+    knowledge_requirements: ["PFKR-8"]

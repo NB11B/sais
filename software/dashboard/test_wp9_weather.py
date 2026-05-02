@@ -55,6 +55,8 @@ def test_source_and_layer_registries(client):
     ids = [s["id"] for s in sources]
     assert "open_weather" in ids
     assert "direct_sensor" in ids
+    assert "latency" in sources[0]
+    assert "cost_profile" in sources[0]
 
     # Check layers
     r = client.get("/api/layers")
@@ -63,6 +65,7 @@ def test_source_and_layer_registries(client):
     ids = [l["id"] for l in layers]
     assert "soil_moisture" in ids
     assert "rainfall" in ids
+    assert "knowledge_requirements" in layers[0]
 
 def test_weather_observation_ingest(client):
     # 1. Post weather observation (Rainfall)
