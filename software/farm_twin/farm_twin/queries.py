@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 from .graph import FarmGraph
 
 def get_zone_water_risk_summary(graph: FarmGraph, farm_id: str, zone_id: str):
@@ -48,17 +49,24 @@ def get_zone_water_risk_summary(graph: FarmGraph, farm_id: str, zone_id: str):
         evidence.append("no soil moisture observations found for zone")
 
     # 2b. Check for recent rainfall (last 24h context)
+    # We use the observation timestamp to filter.
+    yesterday = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     cursor.execute("""
         SELECT payload_json FROM observations
         WHERE farm_id = ? AND measurement_id = 'weather.rainfall.hourly'
+        AND timestamp > ?
         ORDER BY timestamp DESC LIMIT 1
-    """, (farm_id,))
+    """, (farm_id, yesterday))
     rain_row = cursor.fetchone()
     if rain_row:
         rain_obs = json.loads(rain_row[0])
         val = rain_obs.get("value", 0)
-        if val > 0:
-            evidence.append(f"recent rainfall detected: {val}mm")
+        try:
+            val_float = float(val)
+            if val_float > 0:
+                evidence.append(f"recent rainfall detected (last 24h): {val_float}mm")
+        except (ValueError, TypeError):
+            pass
     
     # 3. Analyze status with explicit boundaries
     status = "ok"
@@ -110,11 +118,11 @@ def get_zone_weather_summary(graph: FarmGraph, farm_id: str, zone_id: str):
     cursor = graph.storage.conn.cursor()
     
     # Query latest weather observations (Rainfall, Temp, Humidity, Wind)
-    # We look for nodes with layer='Weather'
+    # We look for nodes with layer='Weather' or 'Atmosphere'
     query = """
         SELECT payload_json FROM observations
-        WHERE farm_id = ? AND layer = 'Weather'
-        ORDER BY timestamp DESC LIMIT 5
+        WHERE farm_id = ? AND layer IN ('Weather', 'Atmosphere')
+        ORDER BY timestamp DESC LIMIT 10
     """
     cursor.execute(query, (farm_id,))
     rows = cursor.fetchall()
@@ -123,15 +131,28 @@ def get_zone_weather_summary(graph: FarmGraph, farm_id: str, zone_id: str):
     for row in rows:
         obs = json.loads(row[0])
         m_id = obs.get("measurement_id")
-        if m_id not in weather_data:
-            weather_data[m_id] = obs
-            evidence.append(f"latest {m_id}: {obs.get('value')} {obs.get('unit', '')}")
+        if m_id and m_id not in weather_data:
+            # Check for staleness (e.g. > 12 hours)
+            try:
+                obs_time = datetime.fromisoformat(obs["timestamp"].replace("Z", "+00:00"))
+                if datetime.now(timezone.utc) - obs_time > timedelta(hours=12):
+                    continue
+                
+                # Type safety for value
+                val = obs.get("value")
+                if val is not None:
+                    weather_data[m_id] = obs
+                    evidence.append(f"latest {m_id}: {val} {obs.get('unit', '')}")
+            except (ValueError, KeyError, TypeError):
+                continue
             
     if not weather_data:
         return {
             "status": "no_data",
             "evidence": ["no recent weather telemetry found"],
-            "summary": "Weather station offline or not yet configured."
+            "summary": "Weather station offline or not yet configured.",
+            "rainfall_mm": 0,
+            "temp_c": None
         }
         
     # Simple logic for WeatherContextCard

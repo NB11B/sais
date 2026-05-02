@@ -5,6 +5,7 @@ class GraphStorage:
     def __init__(self, db_path=":memory:"):
         self.conn = sqlite3.connect(db_path)
         self._init_db()
+        self._migrate_db()
 
     def _init_db(self):
         cursor = self.conn.cursor()
@@ -46,6 +47,27 @@ class GraphStorage:
             )
         ''')
         self.conn.commit()
+
+    def _migrate_db(self):
+        cursor = self.conn.cursor()
+        
+        # 1. Check if 'layer' column exists in 'observations'
+        cursor.execute("PRAGMA table_info(observations)")
+        cols = {row[1] for row in cursor.fetchall()}
+        
+        if "layer" not in cols:
+            cursor.execute("ALTER TABLE observations ADD COLUMN layer TEXT")
+            self.conn.commit()
+            
+            # 2. Backfill from payload_json
+            cursor.execute("SELECT id, payload_json FROM observations WHERE layer IS NULL")
+            rows = cursor.fetchall()
+            for row in rows:
+                obs_id = row[0]
+                payload = json.loads(row[1]) if row[1] else {}
+                layer = payload.get("layer", "Unknown")
+                cursor.execute("UPDATE observations SET layer = ? WHERE id = ?", (layer, obs_id))
+            self.conn.commit()
 
     def add_node(self, node_id: str, node_type: str, payload: dict):
         cursor = self.conn.cursor()

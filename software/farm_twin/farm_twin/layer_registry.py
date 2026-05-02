@@ -12,10 +12,14 @@ class LayerRegistry:
         path = os.path.join(base_dir, "docs", "layer_registry.yaml")
         
         if os.path.exists(path):
-            with open(path, 'r') as f:
-                data = yaml.safe_load(f)
-                for layer in data.get("layers", []):
-                    self.layers[layer["id"]] = layer
+            try:
+                with open(path, 'r') as f:
+                    data = yaml.safe_load(f)
+                    if data and isinstance(data, dict):
+                        for layer in data.get("layers", []):
+                            self.layers[layer["id"]] = layer
+            except Exception as e:
+                print(f"Error loading layer registry: {e}")
         else:
             print(f"Warning: Layer registry not found at {path}")
 

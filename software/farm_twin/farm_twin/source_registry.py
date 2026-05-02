@@ -12,10 +12,14 @@ class SourceRegistry:
         path = os.path.join(base_dir, "docs", "source_registry.yaml")
         
         if os.path.exists(path):
-            with open(path, 'r') as f:
-                data = yaml.safe_load(f)
-                for src in data.get("sources", []):
-                    self.sources[src["id"]] = src
+            try:
+                with open(path, 'r') as f:
+                    data = yaml.safe_load(f)
+                    if data and isinstance(data, dict):
+                        for src in data.get("sources", []):
+                            self.sources[src["id"]] = src
+            except Exception as e:
+                print(f"Error loading source registry: {e}")
         else:
             print(f"Warning: Source registry not found at {path}")
 

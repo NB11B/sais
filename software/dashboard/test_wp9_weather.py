@@ -1,6 +1,7 @@
 import pytest
 import os
 from fastapi.testclient import TestClient
+from datetime import datetime, timedelta, timezone
 
 # Setup DB path override BEFORE importing main
 db_path = "test_sais_wp9.sqlite"
@@ -15,10 +16,13 @@ def client():
         yield c
 
 @pytest.fixture(autouse=True)
-def setup_teardown():
-    # Setup
-    if os.path.exists(db_path):
-        os.remove(db_path)
+def setup_teardown(request):
+    # Use a unique DB for each test to avoid locking and state leaks on Windows
+    test_db = f"test_{request.node.name}.sqlite"
+    os.environ["SAIS_DB_PATH"] = test_db
+    
+    if os.path.exists(test_db):
+        os.remove(test_db)
     
     # Initialize schema and seed data
     graph = get_graph()
@@ -37,8 +41,11 @@ def setup_teardown():
     yield
     
     # Teardown
-    if os.path.exists(db_path):
-        os.remove(db_path)
+    if os.path.exists(test_db):
+        try:
+            os.remove(test_db)
+        except PermissionError:
+            pass # Windows locking can be stubborn
 
 def test_source_and_layer_registries(client):
     # Check sources
@@ -104,7 +111,7 @@ def test_weather_impacts_water_retention(client):
     cards = r.json()["cards"]
     retention_cards = [c for c in cards if c["card_type"] == "WaterRetentionCard"]
     assert len(retention_cards) > 0
-    assert any("recent rainfall detected: 25.0mm" in ev for ev in retention_cards[0]["evidence"])
+    assert any("recent rainfall detected (last 24h): 25.0mm" in ev for ev in retention_cards[0]["evidence"])
     
 def test_weather_registry_visibility(client):
     # 1. Post weather observation
@@ -133,4 +140,27 @@ def test_weather_registry_visibility(client):
     sensors = [s for s in profile["SensorNode"] if s["id"] == "weather-station-1"]
     assert len(sensors) == 1
     assert sensors[0]["node_type"] == "open_weather"
+
+def test_stale_weather_ignored(client):
+    # 1. Post stale weather observation (e.g. 2 days ago)
+    stale_time = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+    payload = {
+        "schema": "sais.observation.v1",
+        "node_id": "stale-station",
+        "farm_id": "local",
+        "timestamp": stale_time,
+        "measurement_id": "weather.air_temperature",
+        "layer": "Weather",
+        "value": 30.0,
+        "source": {"type": "open_weather"}
+    }
+    client.post("/api/observations", json=payload)
+
+    # 2. Check cards - WeatherContextCard should say "no recent weather telemetry"
+    r = client.get("/api/cards")
+    cards = r.json()["cards"]
+    weather_cards = [c for c in cards if c["card_type"] == "WeatherContextCard"]
+    assert len(weather_cards) > 0
+    assert "no recent weather telemetry found" in weather_cards[0]["context"]
+
 

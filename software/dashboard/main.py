@@ -18,10 +18,9 @@ base_dir = os.path.dirname(__file__)
 app.mount("/static", StaticFiles(directory=os.path.join(base_dir, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(base_dir, "templates"))
 
-DB_PATH = os.environ.get("SAIS_DB_PATH", os.path.join(sais_root, "sais.sqlite"))
-
 def get_graph():
-    return FarmGraph(DB_PATH)
+    path = os.environ.get("SAIS_DB_PATH", os.path.join(sais_root, "sais.sqlite"))
+    return FarmGraph(path)
 
 @app.get("/")
 async def dashboard(request: Request):
