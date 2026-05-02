@@ -13,6 +13,8 @@ def generate_water_retention_card(graph: FarmGraph, farm_id: str, field_id: str,
     # Build the card payload
     card = {
         "card_type": "WaterRetentionCard",
+        "pfkr_id": "PFKR-1",
+        "pfkr_domain": "Water Status and Movement",
         "title": f"Zone {zone_id}: Rainfall capture appears weak" if summary["status"] == "watch" else f"Zone {zone_id}: Water retention stable",
         "status": summary["status"],
         "location": {
@@ -57,6 +59,8 @@ def generate_weather_context_card(graph: FarmGraph, farm_id: str, field_id: str,
     
     card = {
         "card_type": "WeatherContextCard",
+        "pfkr_id": "PFKR-7",
+        "pfkr_domain": "Weather and Exposure",
         "title": "Live Weather Context",
         "status": summary["status"],
         "location": {

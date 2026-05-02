@@ -49,9 +49,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 el.innerHTML = `
                     <div class="card-header">
+                        <div class="pfkr-id">${card.pfkr_id || ''}</div>
                         <div class="card-title">${card.card_type}</div>
                         <div class="card-status ${statusClass}">${statusText}</div>
                     </div>
+                    <div class="pfkr-domain">${card.pfkr_domain || ''}</div>
                     <div class="card-meaning">${card.farmer_meaning || ''}</div>
                     <div class="card-inspection">${card.suggested_inspection || ''}</div>
                     <div class="card-evidence">

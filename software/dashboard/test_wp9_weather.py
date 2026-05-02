@@ -88,6 +88,7 @@ def test_weather_observation_ingest(client):
     assert len(weather_cards) > 0
     assert "Rainfall detected (12.5mm)" in weather_cards[0]["observation"]
     assert weather_cards[0]["status"] == "action" # 12.5 > 10
+    assert weather_cards[0]["pfkr_id"] == "PFKR-7"
 
 def test_weather_impacts_water_retention(client):
     # 1. Post heavy rain

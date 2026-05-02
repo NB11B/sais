@@ -83,6 +83,7 @@ class Observation(GraphEntity):
     confidence: str
     source: Dict[str, Any]
     unit: Optional[str] = None
+    pfkr_id: Optional[str] = None
 
 @dataclass
 class DerivedIndicator(GraphEntity):

@@ -210,13 +210,34 @@ body {
 .card-header {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     align-items: center;
+}
+
+.pfkr-id {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(16, 185, 129, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.pfkr-domain {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 4px;
 }
 
 .card-title {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    flex: 1;
+    margin: 0 10px;
 }
 
 .card-status {
