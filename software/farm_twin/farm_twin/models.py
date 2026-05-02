@@ -45,7 +45,18 @@ class GrazingEvent(GraphEntity):
     notes: Optional[str] = None
 
 @dataclass
-class SoilMapUnit(GraphEntity):
+class LivestockObservation(GraphEntity):
+    id: str
+    farm_id: str
+    paddock_id: str
+    timestamp: str
+    bcs: Optional[float] = None
+    manure_score: Optional[int] = None
+    activity_level: Optional[str] = "normal"
+    health_notes: Optional[str] = None
+
+@dataclass
+class SoilMapUnit(GraphEntity) :
     id: str
     farm_id: str
     name: str

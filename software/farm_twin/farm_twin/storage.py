@@ -62,6 +62,17 @@ class GraphStorage:
                 payload_json TEXT
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS livestock_observations (
+                id TEXT PRIMARY KEY, 
+                farm_id TEXT, 
+                paddock_id TEXT, 
+                timestamp TEXT, 
+                bcs REAL, 
+                manure_score INTEGER,
+                payload_json TEXT
+            )
+        ''')
         self.conn.commit()
 
     def _migrate_db(self):
@@ -144,6 +155,29 @@ class GraphStorage:
         )
         row = cursor.fetchone()
         return json.loads(row[0]) if row else None
+
+    def add_livestock_observation(self, obs_id: str, farm_id: str, paddock_id: str, timestamp: str, bcs: float, manure_score: int, payload: dict):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """INSERT OR REPLACE INTO livestock_observations 
+               (id, farm_id, paddock_id, timestamp, bcs, manure_score, payload_json) 
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (obs_id, farm_id, paddock_id, timestamp, bcs, manure_score, json.dumps(payload))
+        )
+        self.conn.commit()
+
+    def get_livestock_observations(self, paddock_id: str = None, limit: int = 5):
+        cursor = self.conn.cursor()
+        query = "SELECT payload_json FROM livestock_observations"
+        params = []
+        if paddock_id:
+            query += " WHERE paddock_id = ?"
+            params.append(paddock_id)
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        return [json.loads(row[0]) for row in cursor.fetchall()]
 
     def update_card_action(self, card_id: str, action_status: str, notes: str, updated_at: str):
         cursor = self.conn.cursor()

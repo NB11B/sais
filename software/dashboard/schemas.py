@@ -63,6 +63,16 @@ class GrazingEventPayload(BaseModel):
     animal_count: int = 0
     notes: Optional[str] = None
 
+class LivestockObservationPayload(BaseModel):
+    id: str
+    farm_id: str
+    paddock_id: str
+    timestamp: str
+    bcs: Optional[float] = None
+    manure_score: Optional[int] = None
+    activity_level: Optional[str] = "normal"
+    health_notes: Optional[str] = None
+
 class SensorNodePayload(BaseModel):
     id: str
     farm_id: str

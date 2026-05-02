@@ -179,8 +179,8 @@ async def get_graph_summary():
 async def admin_page(request: Request):
     return templates.TemplateResponse(request=request, name="admin.html", context={"request": request})
 
-from schemas import FarmPayload, FieldPayload, ZonePayload, PaddockPayload, SensorNodePayload, GrazingEventPayload
-from farm_twin.models import Farm, Field, ManagementZone, Paddock, SensorNode, GrazingEvent
+from schemas import FarmPayload, FieldPayload, ZonePayload, PaddockPayload, SensorNodePayload, GrazingEventPayload, LivestockObservationPayload
+from farm_twin.models import Farm, Field, ManagementZone, Paddock, SensorNode, GrazingEvent, LivestockObservation
 
 @app.get("/api/sources")
 async def get_sources():
@@ -315,6 +315,30 @@ async def post_grazing_event(payload: GrazingEventPayload):
         generate_grazing_readiness_card(graph, payload.farm_id, payload.paddock_id)
         
         return {"status": "success", "id": event_id}
+    finally:
+        graph.storage.conn.close()
+
+@app.post("/api/livestock/observations")
+async def post_livestock_observation(payload: LivestockObservationPayload):
+    graph = get_graph()
+    try:
+        # 1. Add to Storage
+        graph.storage.add_livestock_observation(
+            obs_id=payload.id,
+            farm_id=payload.farm_id,
+            paddock_id=payload.paddock_id,
+            timestamp=payload.timestamp,
+            bcs=payload.bcs,
+            manure_score=payload.manure_score,
+            payload=payload.model_dump()
+        )
+        
+        # 2. Trigger Intelligence
+        from farm_twin.cards import generate_livestock_condition_card, generate_heat_stress_card
+        generate_livestock_condition_card(graph, payload.farm_id, payload.paddock_id)
+        generate_heat_stress_card(graph, payload.farm_id, payload.paddock_id)
+        
+        return {"status": "success", "id": payload.id}
     finally:
         graph.storage.conn.close()
 

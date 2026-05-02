@@ -11,6 +11,73 @@ document.addEventListener('DOMContentLoaded', () => {
     const graphEdgesCount = document.getElementById('graph-edges-count');
     const graphDetails = document.getElementById('graph-details');
 
+    // Livestock Modal Elements
+    const lsModal = document.getElementById('livestock-modal');
+    const openLsBtn = document.getElementById('open-livestock-btn');
+    const closeLsBtn = document.querySelector('.close-modal');
+    const lsForm = document.getElementById('livestock-form');
+    const lsPaddockSelect = document.getElementById('ls_paddock_id');
+
+    // Modal Control
+    if (openLsBtn) {
+        openLsBtn.onclick = (e) => {
+            e.preventDefault();
+            lsModal.style.display = 'block';
+            populatePaddocks();
+        };
+    }
+
+    if (closeLsBtn) {
+        closeLsBtn.onclick = () => lsModal.style.display = 'none';
+    }
+
+    window.onclick = (event) => {
+        if (event.target == lsModal) lsModal.style.display = 'none';
+    };
+
+    async function populatePaddocks() {
+        try {
+            const res = await fetch('/api/graph');
+            const data = await res.json();
+            lsPaddockSelect.innerHTML = '<option value="">Select Paddock...</option>';
+            data.nodes.filter(n => n.labels.includes('Paddock')).forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name || p.id;
+                lsPaddockSelect.appendChild(opt);
+            });
+        } catch (e) { console.error(e); }
+    }
+
+    if (lsForm) {
+        lsForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const payload = {
+                id: `ls-check-${Date.now()}`,
+                farm_id: 'local',
+                paddock_id: lsPaddockSelect.value,
+                timestamp: new Date().toISOString(),
+                bcs: parseFloat(document.getElementById('ls_bcs').value) || null,
+                manure_score: parseInt(document.getElementById('ls_manure').value) || null,
+                health_notes: document.getElementById('ls_notes').value
+            };
+
+            try {
+                const res = await fetch('/api/livestock/observations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    lsModal.style.display = 'none';
+                    lsForm.reset();
+                    fetchCards();
+                    fetchObservations();
+                }
+            } catch (e) { console.error(e); }
+        };
+    }
+
     // Fetch Cards
     async function fetchCards() {
         try {

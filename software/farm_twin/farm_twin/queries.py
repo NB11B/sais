@@ -252,3 +252,87 @@ def get_paddock_grazing_readiness(graph: FarmGraph, farm_id: str, paddock_id: st
         "confidence": "high" if rest_target else "medium"
     }
 
+def get_livestock_health_summary(graph: FarmGraph, paddock_id: str):
+    """
+    Summarizes recent livestock condition observations (BCS, Manure).
+    PFKR-5: Livestock Health, Distribution, and Pressure
+    """
+    evidence = []
+    obs = graph.storage.get_livestock_observations(paddock_id, limit=5)
+    
+    if not obs:
+        return {
+            "status": "insufficient_data",
+            "evidence": ["No recent health observations found for this paddock"],
+            "summary": "Health status indeterminate.",
+            "confidence": "low"
+        }
+        
+    latest = obs[0]
+    bcs = latest.get("bcs")
+    manure = latest.get("manure_score")
+    
+    if bcs: evidence.append(f"Latest BCS: {bcs}")
+    if manure: evidence.append(f"Latest Manure Score: {manure}")
+    
+    status = "ok"
+    if bcs and bcs < 2.5: 
+        status = "watch"
+        evidence.append("BCS is below optimal threshold (2.5)")
+    if manure and manure < 3:
+        status = "watch"
+        evidence.append("Manure score indicates nutritional imbalance")
+        
+    return {
+        "status": status,
+        "evidence": evidence,
+        "summary": f"Latest health check shows {status} condition." if status == "ok" else "Health warning detected.",
+        "confidence": "medium"
+    }
+
+def get_livestock_heat_stress(graph: FarmGraph, farm_id: str, paddock_id: str):
+    """
+    Calculates Temperature-Humidity Index (THI) for livestock heat stress.
+    PFKR-5/PFKR-7 Fusion
+    """
+    evidence = []
+    weather = get_zone_weather_summary(graph, farm_id, paddock_id)
+    
+    temp = weather["temp_c"]
+    # We need RH. Let's look for it specifically.
+    rh = None
+    cursor = graph.storage.conn.cursor()
+    cursor.execute("""
+        SELECT payload_json FROM observations 
+        WHERE farm_id = ? AND measurement_id = 'weather.relative_humidity'
+        ORDER BY timestamp DESC LIMIT 1
+    """, (farm_id,))
+    row = cursor.fetchone()
+    if row:
+        rh = json.loads(row[0]).get("value")
+        
+    if temp is None or rh is None:
+        return {
+            "status": "insufficient_data",
+            "evidence": ["Missing temp or humidity for THI calculation"],
+            "thi": None
+        }
+        
+    # THI = (1.8 * T + 32) - (0.55 - 0.0055 * RH) * (1.8 * T - 26)
+    thi = (1.8 * temp + 32) - (0.55 - 0.0055 * rh) * (1.8 * temp - 26)
+    evidence.append(f"Temp: {temp}C, RH: {rh}%")
+    evidence.append(f"Calculated THI: {round(thi, 1)}")
+    
+    status = "ok"
+    if thi > 89: status = "alert"
+    elif thi > 78: status = "action"
+    elif thi > 71: status = "watch"
+    
+    return {
+        "status": status,
+        "evidence": evidence,
+        "thi": thi,
+        "farmer_meaning": "Livestock at risk of heat stress." if status != "ok" else "Atmospheric comfort is adequate.",
+        "suggested_inspection": "Ensure water access and shade." if status != "ok" else "Standard monitoring."
+    }
+
