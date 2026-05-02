@@ -51,8 +51,8 @@ def ingest_sensor_observation_payload(graph: FarmGraph, data: dict):
     Links the sensor to its zone, connects it to the measurement ontology,
     and stores the observation reading.
     """
-        
     obs_id = f"obs-{data['timestamp']}-{data['node_id']}"
+    source = data.get("source") or {}
     
     # 1. Ensure SensorNode exists
     node_id = data["node_id"]
@@ -60,7 +60,7 @@ def ingest_sensor_observation_payload(graph: FarmGraph, data: dict):
         sensor = SensorNode(
             id=node_id,
             farm_id=data["farm_id"],
-            node_type=data["source"].get("type", "sensor"),
+            node_type=source.get("type", "sensor"),
             field_id=data.get("field_id"),
             zone_id=data.get("zone_id")
         )
@@ -97,7 +97,7 @@ def ingest_sensor_observation_payload(graph: FarmGraph, data: dict):
         unit=data.get("unit"),
         basis=data.get("measurement_basis", "direct"),
         confidence=data.get("confidence", "medium"),
-        source=data.get("source", {})
+        source=source
     )
     
     # Store in dedicated observation table for easy timeseries querying
