@@ -74,6 +74,7 @@ class Measurement(GraphEntity):
 class Observation(GraphEntity):
     id: str
     farm_id: str
+    node_id: str
     timestamp: str
     measurement_id: str
     layer: str

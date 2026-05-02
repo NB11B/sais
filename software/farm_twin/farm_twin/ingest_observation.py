@@ -39,12 +39,18 @@ def ingest_farm_profile(graph: FarmGraph, profile_path: str):
 
 def ingest_sensor_observation(graph: FarmGraph, obs_path: str):
     """
-    Parses a 'sais.observation.v1' JSON and maps it into the FarmGraph.
-    Links the sensor to its zone, connects it to the measurement ontology,
-    and stores the observation reading.
+    Parses a 'sais.observation.v1' JSON file and maps it into the FarmGraph.
     """
     with open(obs_path, 'r') as f:
         data = json.load(f)
+    return ingest_sensor_observation_payload(graph, data)
+
+def ingest_sensor_observation_payload(graph: FarmGraph, data: dict):
+    """
+    Ingests an observation payload directly into the FarmGraph.
+    Links the sensor to its zone, connects it to the measurement ontology,
+    and stores the observation reading.
+    """
         
     obs_id = f"obs-{data['timestamp']}-{data['node_id']}"
     
@@ -83,6 +89,7 @@ def ingest_sensor_observation(graph: FarmGraph, obs_path: str):
     obs = Observation(
         id=obs_id,
         farm_id=data["farm_id"],
+        node_id=data["node_id"],
         timestamp=data["timestamp"],
         measurement_id=meas_id,
         layer=data["layer"],

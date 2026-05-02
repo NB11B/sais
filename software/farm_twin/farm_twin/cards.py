@@ -34,7 +34,7 @@ def generate_water_retention_card(graph: FarmGraph, farm_id: str, field_id: str,
     }
     
     now = datetime.now(timezone.utc)
-    card_id = f"card-water-{zone_id}-{now.strftime('%Y%m%d%H%M%S')}"
+    card_id = f"card-water-{zone_id}"
     
     # Persist the card
     graph.storage.add_card(
