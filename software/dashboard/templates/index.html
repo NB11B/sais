@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAIS | Sovereign Ag-Infrastructure Stack</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="topbar">
+            <div class="logo">SAIS <span>C2 Dashboard</span></div>
+            <div class="status-indicator">
+                <span class="dot pulse"></span> System Online
+            </div>
+        </header>
+
+        <main class="dashboard-grid">
+            <!-- Left Column: Intelligence Cards -->
+            <section class="panel cards-panel">
+                <div class="panel-header">
+                    <h2>Intelligence Cards</h2>
+                    <span class="badge" id="cards-count">0</span>
+                </div>
+                <div class="panel-content" id="cards-container">
+                    <div class="loading">Loading intelligence...</div>
+                </div>
+            </section>
+
+            <!-- Middle Column: Observations -->
+            <section class="panel obs-panel">
+                <div class="panel-header">
+                    <h2>Latest Observations</h2>
+                    <span class="badge" id="obs-count">0</span>
+                </div>
+                <div class="panel-content" id="obs-container">
+                    <div class="loading">Loading telemetry...</div>
+                </div>
+            </section>
+
+            <!-- Right Column: Graph State -->
+            <section class="panel graph-panel">
+                <div class="panel-header">
+                    <h2>Farm Twin Graph</h2>
+                </div>
+                <div class="panel-content">
+                    <div class="metric-group">
+                        <div class="metric">
+                            <span class="label">Nodes</span>
+                            <span class="value" id="graph-nodes-count">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Edges</span>
+                            <span class="value" id="graph-edges-count">--</span>
+                        </div>
+                    </div>
+                    <div class="graph-details" id="graph-details">
+                        <div class="loading">Loading graph state...</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
