@@ -50,6 +50,18 @@ class PaddockPayload(BaseModel, GeoJSONValidator):
     field_id: str
     name: str
     boundary_geojson: Optional[Dict[str, Any]] = None
+    rest_target_days: Optional[int] = None
+
+class GrazingEventPayload(BaseModel):
+    schema_version: str = Field(alias="schema")
+    event_id: str
+    farm_id: str
+    field_id: str
+    paddock_id: str
+    started_at: str
+    ended_at: Optional[str] = None
+    animal_count: int = 0
+    notes: Optional[str] = None
 
 class SensorNodePayload(BaseModel):
     id: str

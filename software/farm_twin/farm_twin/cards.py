@@ -93,3 +93,47 @@ def generate_weather_context_card(graph: FarmGraph, farm_id: str, field_id: str,
     
     return card
 
+def generate_grazing_readiness_card(graph: FarmGraph, farm_id: str, paddock_id: str):
+    """
+    Generates a card for grazing readiness based on PFKR-2 doctrine.
+    """
+    from .queries import get_paddock_grazing_readiness
+    
+    summary = get_paddock_grazing_readiness(graph, farm_id, paddock_id)
+    
+    card = {
+        "card_type": "GrazingReadinessCard",
+        "pfkr_id": "PFKR-2",
+        "pfkr_domain": "Grazing Readiness and Recovery",
+        "title": f"Paddock {paddock_id}: Ready for grazing" if summary["status"] == "ok" else f"Paddock {paddock_id}: Readiness Alert",
+        "status": summary["status"],
+        "location": {
+            "farm_id": farm_id,
+            "paddock_id": paddock_id
+        },
+        "observation": summary["farmer_meaning"],
+        "context": summary["evidence"],
+        "farmer_meaning": summary["farmer_meaning"],
+        "suggested_inspection": summary["suggested_inspection"],
+        "possible_interventions": [
+            "Wait for rest target",
+            "Perform visual recovery score",
+            "Adjust herd move schedule"
+        ],
+        "evidence": summary["evidence"],
+        "confidence": summary["confidence"]
+    }
+    
+    now = datetime.now(timezone.utc)
+    card_id = f"card-grazing-{paddock_id}"
+    
+    graph.storage.add_card(
+        card_id=card_id,
+        created_at=now.isoformat(),
+        card_type=card["card_type"],
+        status=card["status"],
+        payload=card
+    )
+    
+    return card
+

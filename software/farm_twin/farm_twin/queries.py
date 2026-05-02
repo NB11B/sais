@@ -176,3 +176,79 @@ def get_zone_weather_summary(graph: FarmGraph, farm_id: str, zone_id: str):
         "temp_c": temp
     }
 
+def get_paddock_grazing_readiness(graph: FarmGraph, farm_id: str, paddock_id: str):
+    """
+    Evaluates grazing readiness for a paddock based on rest period and environmental stress.
+    PFKR-2: Grazing Readiness and Recovery
+    """
+    evidence = []
+    
+    # 1. Get Paddock Node (for rest target)
+    paddock_node = graph.get_node(paddock_id)
+    if not paddock_node:
+        return {
+            "status": "insufficient_data", 
+            "evidence": [f"Paddock {paddock_id} not found"],
+            "farmer_meaning": "Paddock configuration missing.",
+            "suggested_inspection": "Register paddock in Admin.",
+            "confidence": "low"
+        }
+    
+    p_payload = paddock_node["payload"]
+    rest_target = p_payload.get("rest_target_days")
+    evidence.append(f"Rest target: {rest_target if rest_target else 'unspecified'} days")
+    
+    # 2. Get Latest Grazing Event
+    latest_event = graph.storage.get_latest_grazing_event(paddock_id)
+    if not latest_event:
+        return {
+            "status": "insufficient_data",
+            "evidence": evidence + ["No grazing history recorded for this paddock"],
+            "days_since_graze": None,
+            "farmer_meaning": "Paddock status is unknown due to missing grazing history.",
+            "suggested_inspection": "Log a past grazing event or perform a visual recovery check.",
+            "confidence": "low"
+        }
+    
+    started_at = datetime.fromisoformat(latest_event["started_at"].replace("Z", "+00:00"))
+    days_since = (datetime.now(timezone.utc) - started_at).days
+    evidence.append(f"Days since last graze: {days_since}")
+    
+    # 3. Environmental Context (Moisture/Temp)
+    # Check for low moisture in the parent field/zones
+    # For now, we query general farm weather as a proxy if zone moisture is missing
+    weather = get_zone_weather_summary(graph, farm_id, paddock_id)
+    temp_stress = False
+    if weather["temp_c"] and weather["temp_c"] > 35:
+        temp_stress = True
+        evidence.append(f"High heat stress detected: {weather['temp_c']}C")
+        
+    # 4. Status Logic
+    status = "ok"
+    meaning = "Paddock appears recovered and ready for grazing."
+    inspection = "Perform a standard visual check before moving herd."
+    
+    if rest_target:
+        if days_since < rest_target:
+            status = "not_ready"
+            meaning = f"Paddock has only rested for {days_since} of {rest_target} target days."
+            inspection = "Delay grazing to allow further plant recovery."
+        elif days_since >= rest_target and temp_stress:
+            status = "watch"
+            meaning = "Rest target met, but high heat stress may limit actual regrowth."
+            inspection = "Verify plant vigor and soil moisture before entry."
+    else:
+        status = "ok_with_warning"
+        meaning = "Rest target not set, but grazing history exists."
+        inspection = "Set a rest target in Admin for more precise readiness alerts."
+        
+    return {
+        "paddock_id": paddock_id,
+        "status": status,
+        "evidence": evidence,
+        "days_since_graze": days_since,
+        "farmer_meaning": meaning,
+        "suggested_inspection": inspection,
+        "confidence": "high" if rest_target else "medium"
+    }
+

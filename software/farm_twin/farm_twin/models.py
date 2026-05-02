@@ -32,6 +32,17 @@ class Paddock(GraphEntity):
     field_id: str
     name: str
     boundary_geojson: Optional[dict] = None
+    rest_target_days: Optional[int] = None
+
+@dataclass
+class GrazingEvent(GraphEntity):
+    id: str
+    farm_id: str
+    paddock_id: str
+    started_at: str
+    ended_at: Optional[str] = None
+    animal_count: int = 0
+    notes: Optional[str] = None
 
 @dataclass
 class SoilMapUnit(GraphEntity):

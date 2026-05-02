@@ -49,6 +49,19 @@ class GraphStorage:
                 payload_json TEXT
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS grazing_events (
+                id TEXT PRIMARY KEY, 
+                farm_id TEXT, 
+                field_id TEXT,
+                paddock_id TEXT, 
+                started_at TEXT, 
+                ended_at TEXT, 
+                animal_count INTEGER,
+                notes TEXT,
+                payload_json TEXT
+            )
+        ''')
         self.conn.commit()
 
     def _migrate_db(self):
@@ -112,6 +125,25 @@ class GraphStorage:
             (card_id, created_at, card_type, status, json.dumps(payload))
         )
         self.conn.commit()
+
+    def add_grazing_event(self, event_id: str, farm_id: str, field_id: str, paddock_id: str, started_at: str, ended_at: str, animal_count: int, notes: str, payload: dict):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """INSERT OR REPLACE INTO grazing_events 
+               (id, farm_id, field_id, paddock_id, started_at, ended_at, animal_count, notes, payload_json) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (event_id, farm_id, field_id, paddock_id, started_at, ended_at, animal_count, notes, json.dumps(payload))
+        )
+        self.conn.commit()
+
+    def get_latest_grazing_event(self, paddock_id: str):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT payload_json FROM grazing_events WHERE paddock_id = ? ORDER BY started_at DESC LIMIT 1",
+            (paddock_id,)
+        )
+        row = cursor.fetchone()
+        return json.loads(row[0]) if row else None
 
     def update_card_action(self, card_id: str, action_status: str, notes: str, updated_at: str):
         cursor = self.conn.cursor()

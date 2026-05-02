@@ -179,8 +179,8 @@ async def get_graph_summary():
 async def admin_page(request: Request):
     return templates.TemplateResponse(request=request, name="admin.html", context={"request": request})
 
-from schemas import FarmPayload, FieldPayload, ZonePayload, PaddockPayload, SensorNodePayload
-from farm_twin.models import Farm, Field, ManagementZone, Paddock, SensorNode
+from schemas import FarmPayload, FieldPayload, ZonePayload, PaddockPayload, SensorNodePayload, GrazingEventPayload
+from farm_twin.models import Farm, Field, ManagementZone, Paddock, SensorNode, GrazingEvent
 
 @app.get("/api/sources")
 async def get_sources():
@@ -264,6 +264,57 @@ async def post_farm_paddock(payload: PaddockPayload, paddock_id: str = None):
         graph.add_node(paddock)
         graph.add_edge(paddock.field_id, "CONTAINS", paddock.id)
         return {"status": "success", "id": paddock.id}
+    finally:
+        graph.storage.conn.close()
+
+@app.get("/api/grazing/events")
+async def get_grazing_events(paddock_id: str = None):
+    graph = get_graph()
+    try:
+        cursor = graph.storage.conn.cursor()
+        query = "SELECT payload_json FROM grazing_events"
+        params = []
+        if paddock_id:
+            query += " WHERE paddock_id = ?"
+            params.append(paddock_id)
+        query += " ORDER BY started_at DESC"
+        
+        cursor.execute(query, params)
+        events = [json.loads(row[0]) for row in cursor.fetchall()]
+        return {"events": events}
+    finally:
+        graph.storage.conn.close()
+
+@app.post("/api/grazing/events")
+async def post_grazing_event(payload: GrazingEventPayload):
+    graph = get_graph()
+    try:
+        # 1. Ensure Paddock exists
+        if not graph.get_node(payload.paddock_id):
+            raise HTTPException(status_code=400, detail="Paddock ID does not exist")
+            
+        # 2. Add Event to Storage
+        event_id = payload.event_id
+        graph.storage.add_grazing_event(
+            event_id=event_id,
+            farm_id=payload.farm_id,
+            field_id=payload.field_id,
+            paddock_id=payload.paddock_id,
+            started_at=payload.started_at,
+            ended_at=payload.ended_at,
+            animal_count=payload.animal_count,
+            notes=payload.notes,
+            payload=payload.model_dump(by_alias=True)
+        )
+        
+        # 3. Create Graph Link
+        graph.add_edge(payload.paddock_id, "HOSTED_EVENT", event_id)
+        
+        # 4. Trigger intelligence cards for this paddock
+        from farm_twin.cards import generate_grazing_readiness_card
+        generate_grazing_readiness_card(graph, payload.farm_id, payload.paddock_id)
+        
+        return {"status": "success", "id": event_id}
     finally:
         graph.storage.conn.close()
 

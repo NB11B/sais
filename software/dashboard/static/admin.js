@@ -48,6 +48,25 @@ async function loadMapData() {
             });
             map.fitBounds(group.getBounds(), { padding: [50, 50] });
         }
+
+        // Populate Paddock Dropdown for Grazing Form
+        const paddockSelect = document.getElementById('grazing_paddock_id');
+        if (paddockSelect) {
+            paddockSelect.innerHTML = '<option value="">Select Paddock...</option>';
+            data.nodes.filter(n => n.labels.includes("Paddock")).forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name || p.id;
+                paddockSelect.appendChild(opt);
+            });
+        }
+
+        // Set default start time
+        const startInput = document.getElementById('grazing_start');
+        if (startInput && !startInput.value) {
+            startInput.value = new Date().toISOString();
+        }
+
     } catch (e) {
         console.error("Failed to load map data", e);
     }
@@ -103,7 +122,8 @@ function setupForms() {
             id: document.getElementById('paddock_id').value,
             field_id: document.getElementById('paddock_field_id').value,
             name: document.getElementById('paddock_name').value,
-            boundary_geojson: parseGeoJSON(document.getElementById('paddock_geojson').value)
+            boundary_geojson: parseGeoJSON(document.getElementById('paddock_geojson').value),
+            rest_target_days: parseInt(document.getElementById('paddock_rest').value) || null
         };
         await submitApi('/api/farm/paddocks', 'POST', payload);
     });
@@ -126,6 +146,22 @@ function setupForms() {
             location: loc
         };
         await submitApi('/api/farm/sensor-nodes', 'POST', payload);
+    });
+
+    document.getElementById('grazing-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const paddockId = document.getElementById('grazing_paddock_id').value;
+        const payload = {
+            schema: "sais.grazing_event.v1",
+            event_id: `graze-${paddockId}-${Date.now()}`,
+            farm_id: farmId,
+            field_id: "field-a", // Simplified for now
+            paddock_id: paddockId,
+            started_at: document.getElementById('grazing_start').value,
+            animal_count: parseInt(document.getElementById('grazing_count').value),
+            notes: document.getElementById('grazing_notes').value
+        };
+        await submitApi('/api/grazing/events', 'POST', payload);
     });
 }
 
