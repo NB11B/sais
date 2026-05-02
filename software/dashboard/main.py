@@ -97,13 +97,14 @@ async def get_graph_summary():
     cursor = graph.storage.conn.cursor()
     
     nodes = []
-    cursor.execute("SELECT id, name, labels_json, payload_json FROM nodes")
+    cursor.execute("SELECT id, type, payload_json FROM nodes")
     for row in cursor.fetchall():
+        payload = json.loads(row[2]) if row[2] else {}
         nodes.append({
             "id": row[0],
-            "name": row[1],
-            "labels": json.loads(row[2]),
-            "payload": json.loads(row[3]) if row[3] else {}
+            "name": payload.get("name", row[0]),
+            "labels": [row[1]],
+            "payload": payload
         })
         
     cursor.execute("SELECT id, source_id, type, target_id FROM edges")
@@ -116,7 +117,6 @@ async def get_graph_summary():
             "target": row[3]
         })
     
-    # Just return nodes and edges
     summary = {
         "nodes": nodes,
         "edges": edges,
