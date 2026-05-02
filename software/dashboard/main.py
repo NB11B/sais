@@ -111,9 +111,9 @@ async def get_graph_summary():
     for row in cursor.fetchall():
         edges.append({
             "id": row[0],
-            "source_id": row[1],
+            "source": row[1],
             "type": row[2],
-            "target_id": row[3]
+            "target": row[3]
         })
     
     # Just return nodes and edges
