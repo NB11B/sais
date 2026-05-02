@@ -23,11 +23,28 @@ const int sensorPin = 34; // Analog input (ADC1_CH6)
 WiFiUDP udp;
 unsigned long lastMsgMs = 0;
 
+void sendHello() {
+    // Discovery format:
+    // HELLO,node_id,firmware_version,hardware_family,capability1|capability2,battery_mv,rssi_dbm
+    char hello[128];
+    int rssi = WiFi.RSSI();
+    // In a real build, we'd measure battery. For bench test, assume 4100mV.
+    snprintf(hello, sizeof(hello), 
+        "HELLO,%s,0.1.0,esp32-soil-node,soil.moisture.vwc|soil.temperature,4100,%d",
+        node_id, rssi
+    );
+    
+    Serial.printf("Boot Discovery: %s\n", hello);
+    udp.beginPacket(udpAddress, udpPort);
+    udp.write((uint8_t*)hello, strlen(hello));
+    udp.endPacket();
+}
+
 void setup() {
     Serial.begin(115200);
     delay(1000);
     
-    Serial.println("\n--- SAIS Soil Moisture Node ---");
+    Serial.println("\n--- SAIS Soil Moisture Node (Provisioning Aware) ---");
     
     // Connect to Wi-Fi
     Serial.printf("Connecting to %s ", ssid);
@@ -39,22 +56,23 @@ void setup() {
     Serial.println("\nCONNECTED!");
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());
+
+    // Send discovery packet once on boot
+    sendHello();
 }
 
 void loop() {
-    // Read sensor every 5 seconds
-    if (millis() - lastMsgMs > 5000) {
+    // Read sensor every 10 seconds (throttle for bench test)
+    if (millis() - lastMsgMs > 10000) {
         lastMsgMs = millis();
         
         // 1. Read Analog Value
         int rawVal = analogRead(sensorPin);
         
         // 2. Normalize to VWC (0.0 - 0.5 range for demo)
-        // Adjust these values based on your specific sensor calibration
         float vwc = (rawVal / 4095.0) * 0.5; 
         
-        // 3. Build SAIS UDP Packet (8-field format)
-        // node_id,measurement_id,value,unit,layer,field_id,zone_id,depth_cm
+        // 3. Build SAIS UDP Packet
         char packet[128];
         snprintf(packet, sizeof(packet), 
             "%s,soil.moisture.vwc,%.2f,m3/m3,SoilPhysics,%s,%s,%d",
@@ -62,12 +80,10 @@ void loop() {
         );
         
         // 4. Send Packet
-        Serial.printf("Sending: %s\n", packet);
+        Serial.printf("Telemetry: %s\n", packet);
         udp.beginPacket(udpAddress, udpPort);
         udp.write((uint8_t*)packet, strlen(packet));
         udp.endPacket();
-        
-        Serial.println("Packet sent.");
     }
     
     // Maintain connection
