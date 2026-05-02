@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAIS | Knowledge Graph</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    
+    <!-- Vis.js Network -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+    <style>
+        .network-container {
+            height: calc(100vh - 120px);
+            width: 100%;
+            background: #1e293b;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+            position: relative;
+        }
+        #network {
+            width: 100%;
+            height: 100%;
+        }
+        .graph-legend {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            z-index: 10;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="topbar">
+            <div class="logo">SAIS <span>C2 Dashboard</span></div>
+            
+            <nav class="main-nav">
+                <a href="/" class="nav-link">Operator Feed</a>
+                <a href="/map" class="nav-link">GIS Twin</a>
+                <a href="/network" class="nav-link active">Knowledge Graph</a>
+            </nav>
+
+            <div class="status-indicator">
+                <span class="dot pulse"></span> System Online
+            </div>
+        </header>
+
+        <main class="network-container">
+            <div class="graph-legend">
+                <div class="legend-item"><div class="legend-color" style="background:#10b981;"></div> Farm / Field / Zone</div>
+                <div class="legend-item"><div class="legend-color" style="background:#8b5cf6;"></div> Geospatial Asset</div>
+                <div class="legend-item"><div class="legend-color" style="background:#3b82f6;"></div> Sensor Node</div>
+                <div class="legend-item"><div class="legend-color" style="background:#f59e0b;"></div> Measurement</div>
+                <div class="legend-item"><div class="legend-color" style="background:#ef4444;"></div> Observation</div>
+                <div class="legend-item"><div class="legend-color" style="background:#94a3b8;"></div> Generic Node</div>
+            </div>
+            <div id="network"></div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const container = document.getElementById('network');
+            
+            try {
+                const res = await fetch('/api/graph');
+                const data = await res.json();
+                
+                const getColor = (labels) => {
+                    if (labels.includes('Farm') || labels.includes('Field') || labels.includes('ManagementZone') || labels.includes('Paddock')) return '#10b981';
+                    if (labels.includes('GeospatialLayer') || labels.includes('GeospatialCell') || labels.includes('SoilMapUnit')) return '#8b5cf6';
+                    if (labels.includes('SensorNode')) return '#3b82f6';
+                    if (labels.includes('Measurement')) return '#f59e0b';
+                    if (labels.includes('Observation')) return '#ef4444';
+                    return '#94a3b8';
+                };
+
+                const nodes = new vis.DataSet(data.nodes.map(n => ({
+                    id: n.id,
+                    label: n.name || n.id.split('-').slice(0, 2).join('-'), // truncate long ids
+                    color: getColor(n.labels),
+                    shape: 'dot',
+                    size: n.labels.includes('Observation') ? 10 : 20,
+                    title: `<b>${n.labels.join(', ')}</b><br>${n.id}` // tooltip
+                })));
+
+                const edges = new vis.DataSet(data.edges.map(e => ({
+                    from: e.source,
+                    to: e.target,
+                    label: e.type,
+                    arrows: 'to',
+                    color: { color: 'rgba(148, 163, 184, 0.4)' },
+                    font: { size: 10, color: '#94a3b8', align: 'middle' }
+                })));
+
+                const options = {
+                    nodes: {
+                        font: { color: '#e2e8f0', size: 12 },
+                        borderWidth: 2,
+                        borderWidthSelected: 4
+                    },
+                    edges: {
+                        smooth: { type: 'continuous' }
+                    },
+                    physics: {
+                        forceAtlas2Based: {
+                            gravitationalConstant: -100,
+                            centralGravity: 0.01,
+                            springLength: 200,
+                            springConstant: 0.05
+                        },
+                        maxVelocity: 50,
+                        solver: 'forceAtlas2Based',
+                        timestep: 0.35,
+                        stabilization: { iterations: 150 }
+                    },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 200
+                    }
+                };
+
+                new vis.Network(container, { nodes, edges }, options);
+
+            } catch (err) {
+                console.error("Failed to load graph data", err);
+                container.innerHTML = `<div style="color:#ef4444; padding:20px;">Failed to load graph: ${err.message}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -24,8 +24,16 @@ def get_graph():
     return FarmGraph(DB_PATH)
 
 @app.get("/")
-async def serve_dashboard(request: Request):
+async def dashboard(request: Request):
     return templates.TemplateResponse(request=request, name="index.html", context={"request": request})
+
+@app.get("/map")
+async def map_page(request: Request):
+    return templates.TemplateResponse(request=request, name="map.html", context={"request": request})
+
+@app.get("/network")
+async def network_page(request: Request):
+    return templates.TemplateResponse(request=request, name="network.html", context={"request": request})
 
 @app.get("/api/cards")
 async def get_cards():
@@ -89,13 +97,13 @@ async def get_graph_summary():
     cursor = graph.storage.conn.cursor()
     
     nodes = []
-    cursor.execute("SELECT id, type, payload_json FROM nodes")
+    cursor.execute("SELECT id, name, labels_json, payload_json FROM nodes")
     for row in cursor.fetchall():
-        payload = json.loads(row[2])
         nodes.append({
             "id": row[0],
-            "labels": [row[1]],
-            "name": payload.get("name", row[0])
+            "name": row[1],
+            "labels": json.loads(row[2]),
+            "payload": json.loads(row[3]) if row[3] else {}
         })
         
     cursor.execute("SELECT id, source_id, type, target_id FROM edges")

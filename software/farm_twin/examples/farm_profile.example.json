@@ -1,14 +1,26 @@
 {
   "farm_id": "local",
   "name": "Demo Farm",
+  "boundary_geojson": {
+    "type": "Polygon",
+    "coordinates": [[[-98.58, 39.82], [-98.57, 39.82], [-98.57, 39.83], [-98.58, 39.83], [-98.58, 39.82]]]
+  },
   "fields": [
     {
       "id": "field-a",
       "name": "Field A",
+      "boundary_geojson": {
+        "type": "Polygon",
+        "coordinates": [[[-98.578, 39.822], [-98.572, 39.822], [-98.572, 39.828], [-98.578, 39.828], [-98.578, 39.822]]]
+      },
       "zones": [
         {
           "id": "zone-a1",
-          "name": "North Slope"
+          "name": "North Slope",
+          "boundary_geojson": {
+            "type": "Polygon",
+            "coordinates": [[[-98.578, 39.825], [-98.572, 39.825], [-98.572, 39.828], [-98.578, 39.828], [-98.578, 39.825]]]
+          }
         }
       ],
       "paddocks": [

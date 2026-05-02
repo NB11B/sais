@@ -58,6 +58,31 @@ body {
     color: var(--text-muted);
 }
 
+.main-nav {
+    display: flex;
+    gap: 16px;
+}
+
+.nav-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.nav-link:hover {
+    background: rgba(255,255,255,0.05);
+    color: var(--text-main);
+}
+
+.nav-link.active {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent);
+}
+
 .status-indicator {
     display: flex;
     align-items: center;
