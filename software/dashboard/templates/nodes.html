@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAIS | Node Management</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .nodes-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+        .node-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+        .node-table th {
+            text-align: left;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .node-table td {
+            padding: 16px 12px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.9rem;
+        }
+        .status-badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .status-pending { background: rgba(245, 158, 11, 0.2); color: var(--status-watch); }
+        .status-accepted { background: rgba(16, 185, 129, 0.2); color: var(--status-ok); }
+        .status-rejected { background: rgba(239, 68, 68, 0.2); color: var(--status-alert); }
+        
+        .signal-meter {
+            display: flex;
+            gap: 2px;
+            align-items: flex-end;
+            height: 12px;
+        }
+        .signal-bar {
+            width: 3px;
+            background: var(--border-color);
+            border-radius: 1px;
+        }
+        .signal-bar.active { background: var(--status-ok); }
+
+        .capabilities-list {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .cap-tag {
+            font-size: 0.65rem;
+            background: rgba(255,255,255,0.05);
+            padding: 1px 6px;
+            border-radius: 3px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="topbar">
+            <div class="logo">SAIS <span>C2 Dashboard</span></div>
+            
+            <nav class="main-nav">
+                <a href="/" class="nav-link">Command</a>
+                <a href="/map" class="nav-link">Map</a>
+                <a href="/assets" class="nav-link">Assets</a>
+                <a href="/nodes" class="nav-link active">Nodes</a>
+                <a href="/network" class="nav-link">Knowledge</a>
+                <a href="/admin" class="nav-link">Admin</a>
+            </nav>
+
+            <div class="status-indicator">
+                <span class="dot pulse"></span> System Online
+            </div>
+        </header>
+
+        <main class="nodes-layout">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Hardware Node Registry</h2>
+                    <div class="feed-filters">
+                        <span class="badge" id="nodes-count">0</span>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <p style="color:var(--text-muted); font-size: 0.9rem; margin-bottom: 24px;">
+                        Manage sensor nodes, repeaters, and gateways. New nodes appear as <strong>Pending</strong> until approved in the Admin console.
+                    </p>
+                    
+                    <table class="node-table">
+                        <thead>
+                            <tr>
+                                <th>Node ID</th>
+                                <th>Type / Role</th>
+                                <th>Status</th>
+                                <th>Signal</th>
+                                <th>Capabilities</th>
+                                <th>Last Seen</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="nodes-tbody">
+                            <tr><td colspan="7" class="loading">Inverting registry...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchNodes();
+        });
+
+        // WP25: Safe DOM helpers — never use innerHTML with untrusted data
+        function createEl(tag, className, text) {
+            const el = document.createElement(tag);
+            if (className) el.className = className;
+            if (text !== undefined) el.textContent = String(text);
+            return el;
+        }
+
+        async function fetchNodes() {
+            try {
+                // Fetch both active and pending
+                const [activeRes, pendingRes] = await Promise.all([
+                    fetch('/api/nodes/active'),
+                    fetch('/api/nodes/pending')
+                ]);
+                
+                const active = await activeRes.json();
+                const pending = await pendingRes.json();
+                
+                const allNodes = [...pending.nodes, ...active.nodes];
+                document.getElementById('nodes-count').innerText = allNodes.length;
+                renderNodes(allNodes);
+            } catch (err) {
+                console.error("Failed to fetch nodes", err);
+                const tbody = document.getElementById('nodes-tbody');
+                tbody.replaceChildren();
+                const tr = createEl('tr');
+                const td = createEl('td', null, 'Error: ' + err.message);
+                td.colSpan = 7;
+                td.style.color = 'var(--status-alert)';
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+            }
+        }
+
+        function renderNodes(nodes) {
+            const tbody = document.getElementById('nodes-tbody');
+            tbody.replaceChildren();
+            
+            if (nodes.length === 0) {
+                const tr = createEl('tr');
+                const td = createEl('td', 'loading', 'No nodes discovered in current operating picture.');
+                td.colSpan = 7;
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                return;
+            }
+
+            nodes.forEach(node => {
+                const tr = document.createElement('tr');
+                
+                // Node ID (safe text)
+                const tdId = createEl('td');
+                const strong = createEl('strong', null, String(node.id || ''));
+                tdId.appendChild(strong);
+                tr.appendChild(tdId);
+
+                // Role (safe text)
+                tr.appendChild(createEl('td', null, node.role_template || 'Generic Node'));
+
+                // Status badge (safe text, class sanitized)
+                const tdStatus = createEl('td');
+                const safeStatus = String(node.status || 'unknown').replace(/[^a-z]/g, '');
+                const badge = createEl('span', 'status-badge status-' + safeStatus, node.status || 'unknown');
+                tdStatus.appendChild(badge);
+                tr.appendChild(tdStatus);
+
+                // Signal Meter (generated elements, no untrusted data)
+                const tdSignal = createEl('td');
+                const rssi = Number(node.payload?.rssi) || -100;
+                let bars = 1;
+                if (rssi > -60) bars = 4;
+                else if (rssi > -75) bars = 3;
+                else if (rssi > -85) bars = 2;
+                
+                const meter = createEl('div', 'signal-meter');
+                for(let i=1; i<=4; i++) {
+                    const bar = createEl('div', 'signal-bar' + (i <= bars ? ' active' : ''));
+                    bar.style.height = (i*3) + 'px';
+                    meter.appendChild(bar);
+                }
+                tdSignal.appendChild(meter);
+                tr.appendChild(tdSignal);
+
+                // Capabilities (safe text for each key)
+                const tdCaps = createEl('td');
+                const capsList = createEl('div', 'capabilities-list');
+                const caps = node.capabilities || {};
+                Object.keys(caps).forEach(c => {
+                    capsList.appendChild(createEl('span', 'cap-tag', String(c)));
+                });
+                tdCaps.appendChild(capsList);
+                tr.appendChild(tdCaps);
+
+                // Last Seen (safe text)
+                const lastSeen = node.last_seen ? new Date(node.last_seen).toLocaleTimeString() : 'Never';
+                tr.appendChild(createEl('td', null, lastSeen));
+
+                // Actions
+                const tdActions = createEl('td');
+                const btn = createEl('button', 'btn btn-outline btn-small', 'Configure');
+                btn.addEventListener('click', () => { window.location.href = '/admin'; });
+                tdActions.appendChild(btn);
+                tr.appendChild(tdActions);
+
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>

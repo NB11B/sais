@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SAIS | Ranch Command & Control</title>
+    <title>SAIS | Command Dashboard</title>
     <meta name="description" content="Sovereign Ag-Infrastructure Stack: Advanced C4ISR for modern ranch management, featuring real-time GIS twins and cross-domain intelligence fusion.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,10 +20,12 @@
             <div class="logo">SAIS <span>C2 Dashboard</span></div>
             
             <nav class="main-nav">
-                <a href="/" class="nav-link active">Operator Feed</a>
-                <a href="/map" class="nav-link">GIS Twin</a>
-                <a href="/network" class="nav-link">Knowledge Graph</a>
-                <a href="/admin" class="nav-link">Admin Setup</a>
+                <a href="/" class="nav-link active">Command</a>
+                <a href="/map" class="nav-link">Map</a>
+                <a href="/assets" class="nav-link">Assets</a>
+                <a href="/nodes" class="nav-link">Nodes</a>
+                <a href="/network" class="nav-link">Knowledge</a>
+                <a href="/admin" class="nav-link">Admin</a>
             </nav>
 
             <div class="status-indicator">
@@ -31,57 +33,81 @@
             </div>
         </header>
 
-        <main class="dashboard-grid">
-            <!-- Command Summary: Aggregated Ranch Health -->
-            <section class="panel summary-panel" id="summary-panel" style="grid-column: span 3; display: none;">
-                <div class="panel-content" id="ranch-health-container">
-                    <!-- RanchHealthCard will be injected here -->
-                </div>
+        <main class="command-layout">
+            <!-- PRIORITY STRIP: High-urgency alerts -->
+            <section class="priority-strip" id="priority-strip">
+                <!-- High-priority cards (alert/watch) will be injected here -->
             </section>
 
-            <!-- Left Column: Intelligence Cards -->
-            <section class="panel cards-panel">
-                <div class="panel-header">
-                    <h2>Intelligence Cards</h2>
-                    <span class="badge" id="cards-count">0</span>
-                </div>
-                <div class="panel-content" id="cards-container">
-                    <div class="loading">Loading intelligence...</div>
-                </div>
-            </section>
-
-            <!-- Middle Column: Observations -->
-            <section class="panel obs-panel">
-                <div class="panel-header">
-                    <h2>Latest Observations</h2>
-                    <span class="badge" id="obs-count">0</span>
-                </div>
-                <div class="panel-content" id="obs-container">
-                    <div class="loading">Loading telemetry...</div>
-                </div>
-            </section>
-
-            <!-- Right Column: Graph State -->
-            <section class="panel graph-panel">
-                <div class="panel-header">
-                    <h2>Farm Twin Graph</h2>
-                </div>
-                <div class="panel-content">
-                    <div class="metric-group">
-                        <div class="metric">
-                            <span class="label">Nodes</span>
-                            <span class="value" id="graph-nodes-count">--</span>
+            <div class="command-grid">
+                <!-- LEFT COLUMN: Domain Scorecards & Evidence -->
+                <div class="command-side">
+                    <section class="panel summary-panel" id="summary-panel" style="display: none;">
+                        <div class="panel-content" id="ranch-health-container">
+                            <!-- RanchHealthCard will be injected here -->
                         </div>
-                        <div class="metric">
-                            <span class="label">Edges</span>
-                            <span class="value" id="graph-edges-count">--</span>
+                    </section>
+
+                    <section class="panel domain-scorecard">
+                        <div class="panel-header">
+                            <h2>Domain Status</h2>
                         </div>
-                    </div>
-                    <div class="graph-details" id="graph-details">
-                        <div class="loading">Loading graph state...</div>
-                    </div>
+                        <div class="panel-content" id="domain-status-container">
+                            <!-- Injected by app.js -->
+                        </div>
+                    </section>
+                    
+                    <section class="panel graph-panel">
+                        <div class="panel-header">
+                            <h2>Ranch Knowledge</h2>
+                        </div>
+                        <div class="panel-content">
+                            <div class="metric-group">
+                                <div class="metric">
+                                    <span class="label">Entities</span>
+                                    <span class="value" id="graph-nodes-count">--</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="label">Relations</span>
+                                    <span class="value" id="graph-edges-count">--</span>
+                                </div>
+                            </div>
+                            <div class="graph-details" id="graph-details">
+                                <div class="loading">Inverting graph...</div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
-            </section>
+
+                <!-- MAIN COLUMN: Command Feed -->
+                <div class="command-main">
+                    <section class="panel cards-panel">
+                        <div class="panel-header">
+                            <h2>Operational Feed</h2>
+                            <div class="feed-filters">
+                                <span class="badge" id="cards-count">0</span>
+                                <button class="btn-toggle-ok" id="toggle-ok-btn">Show OK</button>
+                            </div>
+                        </div>
+                        <div class="panel-content" id="cards-container">
+                            <div class="loading">Loading command picture...</div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- RIGHT COLUMN: Telemetry Ticker -->
+                <div class="command-ticker">
+                    <section class="panel obs-panel">
+                        <div class="panel-header">
+                            <h2>Evidence Chain</h2>
+                            <span class="badge" id="obs-count">0</span>
+                        </div>
+                        <div class="panel-contentTicker" id="obs-container">
+                            <div class="loading">Syncing sensors...</div>
+                        </div>
+                    </section>
+                </div>
+            </div>
         </main>
         
         <nav class="mobile-nav">

@@ -113,12 +113,121 @@ body {
     100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
-/* Dashboard Grid */
-.dashboard-grid {
+/* Command Layout Structure */
+.command-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.priority-strip {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    min-height: 40px;
+}
+
+.priority-strip:empty {
+    display: none;
+}
+
+.command-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 300px;
+    grid-template-columns: 320px 1fr 280px;
     gap: 24px;
     align-items: start;
+}
+
+.command-side, .command-main, .command-ticker {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.panel-contentTicker {
+    padding: 16px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 800px;
+    overflow-y: auto;
+}
+
+/* Domain Scorecard */
+.domain-status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.domain-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.domain-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.domain-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* Feed Filters */
+.feed-filters {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.btn-toggle-ok {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.btn-toggle-ok.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+/* Card Collapsing */
+.card-item.collapsed {
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    opacity: 0.8;
+}
+
+.card-item.collapsed .pfkr-domain,
+.card-item.collapsed .card-meaning,
+.card-item.collapsed .card-inspection,
+.card-item.collapsed .card-evidence,
+.card-item.collapsed .card-actions {
+    display: none;
+}
+
+.card-item.collapsed .card-header {
+    margin-bottom: 0;
+    width: 100%;
 }
 
 /* Panels (Glassmorphism) */
@@ -676,3 +785,148 @@ body {
     width: 500px;
     border-radius: var(--radius);
 }
+
+/* WP20: Boundary Builder Styles */
+.point-builder-table {
+    width: 100%;
+    margin-bottom: 12px;
+    font-size: 0.8rem;
+    border-collapse: collapse;
+}
+.point-builder-table th, .point-builder-table td {
+    padding: 6px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+}
+.point-builder-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+}
+.btn-outline:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+.point-remove-btn {
+    color: var(--status-alert);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    padding: 0 4px;
+}
+.capability-checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+}
+.capability-checkbox-group input {
+    width: 16px;
+    height: 16px;
+}
+
+/* WP20: Boundary Builder Styles */
+.point-builder-table {
+    width: 100%;
+    margin-bottom: 12px;
+    font-size: 0.8rem;
+    border-collapse: collapse;
+}
+.point-builder-table th, .point-builder-table td {
+    padding: 6px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+}
+.point-builder-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+}
+.btn-outline:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+.point-remove-btn {
+    color: var(--status-alert);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    padding: 0 4px;
+}
+.capability-checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+}
+.capability-checkbox-group input {
+    width: 16px;
+    height: 16px;
+}
+
+/* WP20: Boundary Builder Styles */
+.point-builder-table {
+    width: 100%;
+    margin-bottom: 12px;
+    font-size: 0.8rem;
+    border-collapse: collapse;
+}
+.point-builder-table th, .point-builder-table td {
+    padding: 6px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+}
+.point-builder-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+}
+.btn-outline:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+.point-remove-btn {
+    color: var(--status-alert);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    padding: 0 4px;
+}
+.capability-checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+}
+.capability-checkbox-group input {
+    width: 16px;
+    height: 16px;
+}
+
+/* WP20: Boundary Builder Styles */
+.point-builder-table { width: 100%; margin-bottom: 12px; font-size: 0.8rem; border-collapse: collapse; }
+.point-builder-table th, .point-builder-table td { padding: 6px; border-bottom: 1px solid var(--border-color); text-align: left; }
+.point-builder-actions { display: flex; gap: 8px; margin-bottom: 16px; }
+.btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+.btn-outline:hover { background: rgba(59,130,246,0.1); }
+.point-remove-btn { color: var(--status-alert); cursor: pointer; background: none; border: none; font-size: 1.2rem; padding: 0 4px; }
+.capability-checkbox-group { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.85rem; }
+.capability-checkbox-group input { width: 16px; height: 16px; }

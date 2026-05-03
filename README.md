@@ -223,8 +223,26 @@ From the repository root:
 cd software/dashboard
 pip install -r requirements.txt
 python seed_db.py
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 127.0.0.1 --port 8000
 ```
+
+For LAN access (e.g., testing from a mobile device):
+
+```bash
+SAIS_BIND_LAN=true python -m main
+```
+
+On startup, the server prints an auto-generated admin token:
+
+```text
+============================================================
+  SAIS Admin Token (auto-generated)
+  <your-token-here>
+  Set SAIS_ADMIN_TOKEN env var to use a fixed token.
+============================================================
+```
+
+Use this token as `Authorization: Bearer <token>` on all mutating API calls.
 
 Then open:
 
@@ -235,8 +253,10 @@ http://localhost:8000
 Useful routes:
 
 ```text
-http://localhost:8000/          Operator Feed
-http://localhost:8000/map       GIS Twin
+http://localhost:8000/          Command
+http://localhost:8000/map       Map
+http://localhost:8000/assets    Assets
+http://localhost:8000/nodes     Nodes
 http://localhost:8000/network   Knowledge Graph
 http://localhost:8000/admin     Admin Setup
 http://localhost:8000/health    API health check
@@ -588,25 +608,29 @@ Current repository work is focused on the software, geospatial, dashboard, and d
 
 SAIS is not yet a certified safety or actuator-control system.
 
-Current security posture:
+Implemented security measures (WP25):
 
 ```text
-local-first execution
-validated API payloads
-SQLite persistence
+default localhost binding (explicit LAN opt-in via SAIS_BIND_LAN)
+bearer-token admin authentication on all mutating routes
+Pydantic payload validation with ID regex, timestamp skew limits, numeric bounds
+GeoJSON size limits and coordinate validation
+XSS-safe DOM rendering (textContent, no innerHTML for untrusted data)
+pending-node quarantine (unaccepted nodes cannot trigger intelligence cards)
+CORS restricted to localhost by default
+security headers (X-Content-Type-Options, X-Frame-Options)
+request body size limit (1 MB)
 no required cloud dependency
 no arbitrary external URL fetch endpoint
-clear separation between planned research modules and active implementation
 ```
 
 Future security work:
 
 ```text
 signed node telemetry
-node identity registry
-anti-replay counters
-local audit records
-role-based local admin access
+anti-replay sequence counters
+hash-chained append-only audit ledger
+role-based local admin access (RBAC)
 field-safe actuator authorization
 ```
 

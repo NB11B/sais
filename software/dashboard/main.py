@@ -3,9 +3,12 @@ import sys
 import json
 from datetime import datetime, timezone
 from typing import Dict, Any
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 # Add farm_twin to python path
 sais_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -13,9 +16,44 @@ sys.path.insert(0, os.path.join(sais_root, 'software', 'farm_twin'))
 
 from farm_twin.graph import FarmGraph
 from farm_twin.gis_registry import GisRegistry
+from auth import require_admin
 
 app = FastAPI(title="SAIS Dashboard API")
 gis_registry = GisRegistry()
+
+# --- WP25: Security Middleware ---
+
+# CORS: localhost only by default; LAN origins via SAIS_CORS_ORIGINS env
+_cors_origins = os.environ.get("SAIS_CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in _cors_origins],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
+
+# Security headers
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Request body size limit (1 MB)
+MAX_BODY_BYTES = int(os.environ.get("SAIS_MAX_BODY_BYTES", 1_048_576))
+
+class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > MAX_BODY_BYTES:
+            return Response("Request body too large", status_code=413)
+        return await call_next(request)
+
+app.add_middleware(RequestSizeLimitMiddleware)
 
 # Setup static and templates
 base_dir = os.path.dirname(__file__)
@@ -28,15 +66,23 @@ def get_graph():
 
 @app.get("/")
 async def dashboard(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html", context={"request": request})
+    return templates.TemplateResponse(request=request, name="index.html", context={"request": request, "active_page": "command"})
 
 @app.get("/map")
 async def map_page(request: Request):
-    return templates.TemplateResponse(request=request, name="map.html", context={"request": request})
+    return templates.TemplateResponse(request=request, name="map.html", context={"request": request, "active_page": "map"})
+
+@app.get("/assets")
+async def assets_page(request: Request):
+    return templates.TemplateResponse(request=request, name="assets.html", context={"request": request, "active_page": "assets"})
+
+@app.get("/nodes")
+async def nodes_page(request: Request):
+    return templates.TemplateResponse(request=request, name="nodes.html", context={"request": request, "active_page": "nodes"})
 
 @app.get("/network")
 async def network_page(request: Request):
-    return templates.TemplateResponse(request=request, name="network.html", context={"request": request})
+    return templates.TemplateResponse(request=request, name="network.html", context={"request": request, "active_page": "knowledge"})
 
 @app.get("/api/cards")
 async def get_cards():
@@ -58,7 +104,7 @@ async def get_cards():
         graph.storage.conn.close()
 
 @app.post("/api/cards/{card_id}/action")
-async def update_card_action(card_id: str, data: dict):
+async def update_card_action(card_id: str, data: dict, admin=Depends(require_admin)):
     graph = get_graph()
     try:
         status = data.get("status", "pending")
@@ -90,7 +136,7 @@ async def health_check():
     return {"status": "healthy"}
 
 @app.post("/api/observations")
-async def post_observation(payload: ObservationPayload):
+async def post_observation(payload: ObservationPayload, admin=Depends(require_admin)):
     from farm_twin.ingest_observation import ingest_sensor_observation_payload
     from farm_twin.cards import generate_water_retention_card
     
@@ -98,36 +144,50 @@ async def post_observation(payload: ObservationPayload):
     graph = get_graph()
     
     try:
+        # WP25: Check node acceptance status before full pipeline
+        node_id = data.get("node_id")
+        node_reg = graph.storage.get_node_registry(node_id) if node_id else None
+        node_accepted = node_reg and node_reg.get("status") == "accepted" if node_reg else False
+        
+        if not node_accepted:
+            # Quarantine: store observation with reduced confidence, skip card generation
+            data["confidence"] = "quarantined"
+        
         # Ingest the observation directly
         obs_id = ingest_sensor_observation_payload(graph, data)
         
-        # Trigger intelligence rule if it relates to water/moisture
-        farm_id = data.get("farm_id")
-        zone_id = data.get("zone_id")
-        layer = data.get("layer")
-        
-        if farm_id:
-            # For cards that need a zone/field, we try to resolve them.
-            # Weather cards are often farm-wide but we'll link to a zone if available for the location object.
-            field_id = data.get("field_id")
-            if zone_id and not field_id:
-                zone_node = graph.get_node(zone_id)
-                field_id = zone_node["payload"].get("field_id") if zone_node else None
+        # Only trigger intelligence pipeline for accepted nodes
+        if node_accepted:
+            farm_id = data.get("farm_id")
+            zone_id = data.get("zone_id")
+            layer = data.get("layer")
             
-            if layer == "Weather":
-                from farm_twin.cards import generate_weather_context_card
-                generate_weather_context_card(graph, farm_id, field_id, zone_id)
-                # Rainfall also impacts water retention
-                if field_id and zone_id:
-                    generate_water_retention_card(graph, farm_id, field_id, zone_id)
-        # WP19: Update last_seen in registry
-        graph.storage.update_node_registry(node_id=data["node_id"], last_seen=data["timestamp"])
+            if farm_id:
+                # For cards that need a zone/field, we try to resolve them.
+                # Weather cards are often farm-wide but we'll link to a zone if available for the location object.
+                field_id = data.get("field_id")
+                if zone_id and not field_id:
+                    zone_node = graph.get_node(zone_id)
+                    field_id = zone_node["payload"].get("field_id") if zone_node else None
+                
+                if layer == "Weather":
+                    from farm_twin.cards import generate_weather_context_card
+                    generate_weather_context_card(graph, farm_id, field_id, zone_id)
+                    # Rainfall also impacts water retention
+                    if field_id and zone_id:
+                        generate_water_retention_card(graph, farm_id, field_id, zone_id)
+                elif layer == "SoilPhysics":
+                    if field_id and zone_id:
+                        generate_water_retention_card(graph, farm_id, field_id, zone_id)
+            
+            # WP19: Update last_seen in registry (only for accepted nodes)
+            graph.storage.update_node_registry(node_id=node_id, last_seen=data["timestamp"])
+            
+            from farm_twin.cards import generate_ranch_health_card, generate_source_health_card
+            generate_source_health_card(graph, farm_id)
+            generate_ranch_health_card(graph, farm_id)
         
-        from farm_twin.cards import generate_ranch_health_card, generate_source_health_card
-        generate_source_health_card(graph, farm_id)
-        generate_ranch_health_card(graph, farm_id)
-        
-        return {"status": "success", "obs_id": obs_id}
+        return {"status": "success", "obs_id": obs_id, "quarantined": not node_accepted}
     finally:
         graph.storage.conn.close()
 
@@ -182,9 +242,10 @@ async def get_graph_summary():
 
 @app.get("/admin")
 async def admin_page(request: Request):
-    return templates.TemplateResponse(request=request, name="admin.html", context={"request": request})
+    return templates.TemplateResponse(request=request, name="admin.html", context={"request": request, "active_page": "admin"})
 
 from schemas import FarmPayload, FieldPayload, ZonePayload, PaddockPayload, SensorNodePayload, GrazingEventPayload, LivestockObservationPayload
+from schemas import InfrastructureAssetPayload, WaterAssetPayload, NodeHelloPayload, NodeAssignmentPayload
 from farm_twin.models import Farm, Field, ManagementZone, Paddock, SensorNode, GrazingEvent, LivestockObservation
 
 @app.get("/api/sources")
@@ -215,7 +276,7 @@ async def get_farm_profile():
         graph.storage.conn.close()
 
 @app.put("/api/farm/profile")
-async def put_farm_profile(payload: FarmPayload):
+async def put_farm_profile(payload: FarmPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
         farm = Farm(**payload.model_dump())
@@ -226,7 +287,7 @@ async def put_farm_profile(payload: FarmPayload):
 
 @app.post("/api/farm/fields")
 @app.put("/api/farm/fields/{field_id}")
-async def post_farm_field(payload: FieldPayload, field_id: str = None):
+async def post_farm_field(payload: FieldPayload, field_id: str = None, admin=Depends(require_admin)):
     if field_id and field_id != payload.id:
         raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
@@ -242,7 +303,7 @@ async def post_farm_field(payload: FieldPayload, field_id: str = None):
 
 @app.post("/api/farm/zones")
 @app.put("/api/farm/zones/{zone_id}")
-async def post_farm_zone(payload: ZonePayload, zone_id: str = None):
+async def post_farm_zone(payload: ZonePayload, zone_id: str = None, admin=Depends(require_admin)):
     if zone_id and zone_id != payload.id:
         raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
@@ -258,7 +319,7 @@ async def post_farm_zone(payload: ZonePayload, zone_id: str = None):
 
 @app.post("/api/farm/paddocks")
 @app.put("/api/farm/paddocks/{paddock_id}")
-async def post_farm_paddock(payload: PaddockPayload, paddock_id: str = None):
+async def post_farm_paddock(payload: PaddockPayload, paddock_id: str = None, admin=Depends(require_admin)):
     if paddock_id and paddock_id != payload.id:
         raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
@@ -291,7 +352,7 @@ async def get_grazing_events(paddock_id: str = None):
         graph.storage.conn.close()
 
 @app.post("/api/grazing/events")
-async def post_grazing_event(payload: GrazingEventPayload):
+async def post_grazing_event(payload: GrazingEventPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
         # 1. Ensure Paddock exists
@@ -324,7 +385,7 @@ async def post_grazing_event(payload: GrazingEventPayload):
         graph.storage.conn.close()
 
 @app.post("/api/livestock/observations")
-async def post_livestock_observation(payload: LivestockObservationPayload):
+async def post_livestock_observation(payload: LivestockObservationPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
         # 1. Validation
@@ -362,7 +423,7 @@ async def post_livestock_observation(payload: LivestockObservationPayload):
 
 @app.post("/api/farm/sensor-nodes")
 @app.put("/api/farm/sensor-nodes/{node_id}")
-async def post_sensor_node(payload: SensorNodePayload, node_id: str = None):
+async def post_sensor_node(payload: SensorNodePayload, node_id: str = None, admin=Depends(require_admin)):
     if node_id and node_id != payload.id:
         raise HTTPException(status_code=400, detail="Path ID does not match payload ID")
     graph = get_graph()
@@ -383,7 +444,7 @@ async def post_sensor_node(payload: SensorNodePayload, node_id: str = None):
         graph.storage.conn.close()
 
 @app.post("/api/plant/observations")
-async def post_plant_observation(payload: PlantObservationPayload):
+async def post_plant_observation(payload: PlantObservationPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
         # 1. Validation
@@ -418,7 +479,7 @@ async def post_plant_observation(payload: PlantObservationPayload):
         graph.storage.conn.close()
 
 @app.post("/api/soil/observations")
-async def post_soil_observation(payload: SoilObservationPayload):
+async def post_soil_observation(payload: SoilObservationPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
         graph.storage.add_soil_observation(
@@ -443,7 +504,7 @@ async def post_soil_observation(payload: SoilObservationPayload):
         graph.storage.conn.close()
 
 @app.post("/api/infrastructure/status")
-async def post_infrastructure_status(payload: InfrastructureStatusPayload):
+async def post_infrastructure_status(payload: InfrastructureStatusPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
         graph.storage.add_infrastructure_asset(
@@ -471,18 +532,19 @@ async def post_infrastructure_status(payload: InfrastructureStatusPayload):
         graph.storage.conn.close()
 
 @app.post("/api/infrastructure/asset")
-async def post_infrastructure_asset(payload: Dict[str, Any]):
+async def post_infrastructure_asset(payload: InfrastructureAssetPayload, admin=Depends(require_admin)):
     from farm_twin.models import InfrastructureAsset
     graph = get_graph()
     try:
+        data = payload.model_dump()
         asset = InfrastructureAsset(
-            id=payload["id"],
-            farm_id=payload["farm_id"],
-            asset_type=payload["asset_type"],
-            name=payload.get("name", payload["id"]),
-            status=payload.get("status", "unknown"),
-            location_geojson=payload.get("location_geojson"),
-            notes=payload.get("notes")
+            id=data["id"],
+            farm_id=data["farm_id"],
+            asset_type=data["asset_type"],
+            name=data.get("name", data["id"]),
+            status=data.get("status", "unknown"),
+            location_geojson=data.get("location_geojson"),
+            notes=data.get("notes")
         )
         graph.add_node(asset)
         
@@ -492,7 +554,7 @@ async def post_infrastructure_asset(payload: Dict[str, Any]):
             farm_id=asset.farm_id,
             asset_type=asset.asset_type,
             status=asset.status,
-            payload=payload
+            payload=data
         )
         
         return {"status": "success", "id": asset.id}
@@ -500,16 +562,17 @@ async def post_infrastructure_asset(payload: Dict[str, Any]):
         graph.storage.conn.close()
 
 @app.post("/api/infrastructure/water")
-async def post_water_asset(payload: Dict[str, Any]):
+async def post_water_asset(payload: WaterAssetPayload, admin=Depends(require_admin)):
     from farm_twin.models import WaterAsset
     graph = get_graph()
     try:
+        data = payload.model_dump()
         asset = WaterAsset(
-            id=payload["id"],
-            farm_id=payload["farm_id"],
-            asset_type=payload["asset_type"],
-            name=payload["name"],
-            location=payload.get("location")
+            id=data["id"],
+            farm_id=data["farm_id"],
+            asset_type=data["asset_type"],
+            name=data["name"],
+            location=data.get("location")
         )
         graph.add_node(asset)
         return {"status": "success", "id": asset.id}
@@ -519,19 +582,19 @@ async def post_water_asset(payload: Dict[str, Any]):
 # --- WP19 Node Provisioning API ---
 
 @app.post("/api/nodes/hello")
-async def node_hello(payload: Dict[str, Any]):
+async def node_hello(payload: NodeHelloPayload):
     """
     Heartbeat/Discovery endpoint for hardware nodes.
     Registers unknown nodes as 'pending'.
+    WP25: Open endpoint (no admin token required) but no card generation.
     """
-    node_id = payload.get("id")
-    if not node_id:
-        raise HTTPException(status_code=400, detail="Missing node id")
+    node_id = payload.id
     
     graph = get_graph()
     try:
         now = datetime.now(timezone.utc).isoformat()
         existing = graph.storage.get_node_registry(node_id)
+        data = payload.model_dump()
         
         if not existing:
             graph.storage.update_node_registry(
@@ -539,20 +602,18 @@ async def node_hello(payload: Dict[str, Any]):
                 status="pending",
                 first_seen=now,
                 last_seen=now,
-                capabilities=payload.get("capabilities", {}),
-                payload=payload
+                capabilities=payload.capabilities or {},
+                payload=data
             )
         else:
             graph.storage.update_node_registry(
                 node_id=node_id,
                 last_seen=now,
-                payload=payload
+                payload=data
             )
         
-        from farm_twin.cards import generate_source_health_card, generate_ranch_health_card
-        farm_id = payload.get("farm_id", "local")
-        generate_source_health_card(graph, farm_id)
-        generate_ranch_health_card(graph, farm_id)
+        # WP25: Pending node discovery does NOT trigger operational cards.
+        # Cards are only generated when accepted nodes report telemetry.
         
         return {"status": "success", "node_id": node_id}
     finally:
@@ -577,7 +638,7 @@ async def get_active_nodes():
         graph.storage.conn.close()
 
 @app.post("/api/nodes/{node_id}/accept")
-async def accept_node(node_id: str):
+async def accept_node(node_id: str, admin=Depends(require_admin)):
     graph = get_graph()
     try:
         graph.storage.update_node_registry(node_id, status="accepted")
@@ -586,7 +647,7 @@ async def accept_node(node_id: str):
         graph.storage.conn.close()
 
 @app.post("/api/nodes/{node_id}/reject")
-async def reject_node(node_id: str):
+async def reject_node(node_id: str, admin=Depends(require_admin)):
     graph = get_graph()
     try:
         graph.storage.update_node_registry(node_id, status="rejected")
@@ -595,18 +656,19 @@ async def reject_node(node_id: str):
         graph.storage.conn.close()
 
 @app.put("/api/nodes/{node_id}/assignment")
-async def update_node_assignment(node_id: str, data: Dict[str, Any]):
+async def update_node_assignment(node_id: str, data: NodeAssignmentPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
+        assignment = data.model_dump(exclude_none=True)
         graph.storage.update_node_registry(
             node_id=node_id,
-            role=data.get("role"),
-            farm_id=data.get("farm_id"),
-            field_id=data.get("field_id"),
-            zone_id=data.get("zone_id"),
-            paddock_id=data.get("paddock_id"),
-            asset_id=data.get("asset_id"),
-            config=data.get("config", {})
+            role=assignment.get("role"),
+            farm_id=assignment.get("farm_id"),
+            field_id=assignment.get("field_id"),
+            zone_id=assignment.get("zone_id"),
+            paddock_id=assignment.get("paddock_id"),
+            asset_id=assignment.get("asset_id"),
+            config=assignment.get("config", {})
         )
         
         # WP19: Also update the graph node to reflect assignment
@@ -619,7 +681,7 @@ async def update_node_assignment(node_id: str, data: Dict[str, Any]):
                 node_type=reg.get("role_template", "sensor"),
                 field_id=reg.get("field_id"),
                 zone_id=reg.get("zone_id"),
-                location=data.get("location")
+                location=data.location
             )
             graph.add_node(sensor)
             if sensor.zone_id:
@@ -636,4 +698,9 @@ async def get_node_roles():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    # WP25: Default bind to localhost. Set SAIS_BIND_LAN=true for LAN access.
+    bind_host = "0.0.0.0" if os.environ.get("SAIS_BIND_LAN") == "true" else "127.0.0.1"
+    reload_mode = os.environ.get("SAIS_ENV") != "production"
+    port = int(os.environ.get("SAIS_PORT", 8000))
+    print(f"SAIS Dashboard binding to {bind_host}:{port} (LAN={'enabled' if bind_host == '0.0.0.0' else 'disabled'})")
+    uvicorn.run("main:app", host=bind_host, port=port, reload=reload_mode)

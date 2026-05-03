@@ -57,10 +57,12 @@
             <div class="logo">SAIS <span>C2 Dashboard</span></div>
             
             <nav class="main-nav">
-                <a href="/" class="nav-link">Operator Feed</a>
-                <a href="/map" class="nav-link">GIS Twin</a>
-                <a href="/network" class="nav-link active">Knowledge Graph</a>
-                <a href="/admin" class="nav-link">Admin Setup</a>
+                <a href="/" class="nav-link">Command</a>
+                <a href="/map" class="nav-link">Map</a>
+                <a href="/assets" class="nav-link">Assets</a>
+                <a href="/nodes" class="nav-link">Nodes</a>
+                <a href="/network" class="nav-link active">Knowledge</a>
+                <a href="/admin" class="nav-link">Admin</a>
             </nav>
 
             <div class="status-indicator">
@@ -147,7 +149,11 @@
 
             } catch (err) {
                 console.error("Failed to load graph data", err);
-                container.innerHTML = `<div style="color:#ef4444; padding:20px;">Failed to load graph: ${err.message}</div>`;
+                container.replaceChildren();
+                const errDiv = document.createElement('div');
+                errDiv.style.cssText = 'color:#ef4444; padding:20px;';
+                errDiv.textContent = 'Failed to load graph: ' + err.message;
+                container.appendChild(errDiv);
             }
         });
     </script>

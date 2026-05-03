@@ -1,4 +1,6 @@
-<!DOCTYPE html>
+import os
+
+admin_html = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -298,4 +300,8 @@
 
 <script src="/static/admin.js"></script>
 </body>
-</html>
+</html>"""
+
+with open('templates/admin.html', 'w', encoding='utf-8') as f:
+    f.write(admin_html)
+print('admin.html written OK')

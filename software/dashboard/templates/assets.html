@@ -1,0 +1,232 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAIS | Assets Management</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .assets-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+        .asset-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .asset-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 20px;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .asset-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+        }
+        .asset-type-badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.1);
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            display: inline-block;
+        }
+        .asset-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .asset-meta {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .asset-actions {
+            margin-top: 16px;
+            display: flex;
+            gap: 12px;
+        }
+        .tab-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+        }
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 6px;
+        }
+        .tab-btn.active {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="topbar">
+            <div class="logo">SAIS <span>C2 Dashboard</span></div>
+            
+            <nav class="main-nav">
+                <a href="/" class="nav-link">Command</a>
+                <a href="/map" class="nav-link">Map</a>
+                <a href="/assets" class="nav-link active">Assets</a>
+                <a href="/nodes" class="nav-link">Nodes</a>
+                <a href="/network" class="nav-link">Knowledge</a>
+                <a href="/admin" class="nav-link">Admin</a>
+            </nav>
+
+            <div class="status-indicator">
+                <span class="dot pulse"></span> System Online
+            </div>
+        </header>
+
+        <main class="assets-layout">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Ranch Infrastructure & Spatial Assets</h2>
+                </div>
+                <div class="panel-content">
+                    <div class="tab-nav">
+                        <button class="tab-btn active" onclick="filterAssets('all')">All</button>
+                        <button class="tab-btn" onclick="filterAssets('Field')">Fields</button>
+                        <button class="tab-btn" onclick="filterAssets('ManagementZone')">Zones</button>
+                        <button class="tab-btn" onclick="filterAssets('Paddock')">Paddocks</button>
+                        <button class="tab-btn" onclick="filterAssets('InfrastructureAsset')">Hardware</button>
+                    </div>
+                    
+                    <div id="asset-grid" class="asset-grid">
+                        <div class="loading">Inverting asset registry...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let allAssets = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchAssets();
+        });
+
+        // WP25: Safe DOM helpers
+        function createEl(tag, className, text) {
+            const el = document.createElement(tag);
+            if (className) el.className = className;
+            if (text !== undefined) el.textContent = String(text);
+            return el;
+        }
+
+        async function fetchAssets() {
+            try {
+                const res = await fetch('/api/graph');
+                const data = await res.json();
+                
+                // Filter for spatial/infrastructure types
+                const types = ['Field', 'ManagementZone', 'Paddock', 'InfrastructureAsset', 'WaterAsset'];
+                allAssets = data.nodes.filter(n => n.labels.some(l => types.includes(l)));
+                
+                renderAssets(allAssets);
+            } catch (err) {
+                console.error("Failed to fetch assets", err);
+                const grid = document.getElementById('asset-grid');
+                grid.replaceChildren();
+                const errDiv = createEl('div', null, 'Error loading assets: ' + err.message);
+                errDiv.style.color = 'var(--status-alert)';
+                grid.appendChild(errDiv);
+            }
+        }
+
+        function renderAssets(assets) {
+            const grid = document.getElementById('asset-grid');
+            grid.replaceChildren();
+            
+            if (assets.length === 0) {
+                grid.appendChild(createEl('div', 'loading', 'No assets registered in current operating picture.'));
+                return;
+            }
+
+            assets.forEach(asset => {
+                const type = asset.labels[0];
+                const card = createEl('div', 'asset-card');
+                card.dataset.type = type;
+                
+                // Type badge
+                const typeLabel = type === 'ManagementZone' ? 'Zone' : type;
+                card.appendChild(createEl('span', 'asset-type-badge', typeLabel));
+                
+                // Name (safe text)
+                card.appendChild(createEl('div', 'asset-name', asset.name || asset.id || ''));
+                
+                // Meta section
+                const meta = createEl('div', 'asset-meta');
+                meta.appendChild(createEl('div', null, 'ID: ' + String(asset.id || '')));
+                if (asset.payload.farm_id) {
+                    meta.appendChild(createEl('div', null, 'Farm: ' + String(asset.payload.farm_id)));
+                }
+                if (asset.payload.status) {
+                    const statusDiv = createEl('div');
+                    statusDiv.textContent = 'Status: ';
+                    const statusSpan = createEl('span', null, String(asset.payload.status).toUpperCase());
+                    const safeStatus = String(asset.payload.status).replace(/[^a-z]/g, '');
+                    statusSpan.style.color = 'var(--status-' + safeStatus + ')';
+                    statusDiv.appendChild(statusSpan);
+                    meta.appendChild(statusDiv);
+                }
+                card.appendChild(meta);
+                
+                // Actions
+                const actions = createEl('div', 'asset-actions');
+                const btn = createEl('button', 'btn btn-outline btn-small', 'View on Map');
+                const safeId = String(asset.id || '').replace(/[^a-zA-Z0-9._\-]/g, '');
+                btn.addEventListener('click', () => viewOnMap(safeId));
+                actions.appendChild(btn);
+                card.appendChild(actions);
+                
+                grid.appendChild(card);
+            });
+        }
+
+        function filterAssets(type) {
+            // Update tabs
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.innerText.includes(type) || (type === 'all' && btn.innerText === 'All')) {
+                    btn.classList.add('active');
+                }
+            });
+
+            if (type === 'all') {
+                renderAssets(allAssets);
+            } else {
+                const filtered = allAssets.filter(a => a.labels.includes(type));
+                renderAssets(filtered);
+            }
+        }
+
+        function viewOnMap(id) {
+            window.location.href = `/map?highlight=${encodeURIComponent(id)}`;
+        }
+    </script>
+</body>
+</html>

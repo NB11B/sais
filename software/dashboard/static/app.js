@@ -11,6 +11,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const graphEdgesCount = document.getElementById('graph-edges-count');
     const graphDetails = document.getElementById('graph-details');
 
+    const priorityStrip = document.getElementById('priority-strip');
+    const domainStatusContainer = document.getElementById('domain-status-container');
+    const toggleOkBtn = document.getElementById('toggle-ok-btn');
+    
+    let showOkCards = false;
+
+    if (toggleOkBtn) {
+        toggleOkBtn.onclick = () => {
+            showOkCards = !showOkCards;
+            toggleOkBtn.classList.toggle('active', showOkCards);
+            toggleOkBtn.textContent = showOkCards ? 'Hide OK' : 'Show OK';
+            fetchCards();
+        };
+    }
+
     // Livestock Modal Elements
     const lsModal = document.getElementById('livestock-modal');
     const openLsBtn = document.getElementById('open-livestock-btn');
@@ -272,31 +287,19 @@ document.addEventListener('DOMContentLoaded', () => {
             cardsCount.textContent = data.cards.length;
             
             if (data.cards.length === 0) {
-                cardsContainer.innerHTML = '<div class="loading">No cards generated yet.</div>';
-                document.getElementById('summary-panel').style.display = 'none';
-                return;
-            }
-            
-            // Handle Ranch Health Card (Singleton)
+            // 1. Handle RanchHealthCard (Summary Panel)
             const healthCard = data.cards.find(c => c.card_type === 'RanchHealthCard');
             const summaryPanel = document.getElementById('summary-panel');
-            const healthContainer = document.getElementById('ranch-health-container');
-            
-            if (healthCard) {
+            if (healthCard && summaryPanel) {
                 summaryPanel.style.display = 'block';
                 const statusClass = `status-${healthCard.status}`;
+                let scoreHtml = '';
+                if (healthCard.score !== undefined) {
+                    scoreHtml = `<div class="health-score">${healthCard.score}%</div>`;
+                }
                 
-                let scoreHtml = '<div class="scorecard-grid">';
-                Object.entries(healthCard.scorecard).forEach(([pfkr, status]) => {
-                    scoreHtml += `
-                        <div class="score-item status-${status}">
-                            <div class="score-label">${pfkr}</div>
-                        </div>
-                    `;
-                });
-                scoreHtml += '</div>';
-
-                healthContainer.innerHTML = `
+                const container = document.getElementById('ranch-health-container');
+                container.innerHTML = `
                     <div class="health-header">
                         <div class="health-title">${healthCard.observation}</div>
                         <div class="health-status-badge ${statusClass}">${healthCard.status.toUpperCase()}</div>
@@ -304,65 +307,129 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${scoreHtml}
                     <div class="health-context">${healthCard.context.join(' &middot; ')}</div>
                 `;
-            } else {
+            } else if (summaryPanel) {
                 summaryPanel.style.display = 'none';
             }
 
+            // 2. Clear Containers
+            if (priorityStrip) priorityStrip.innerHTML = '';
             cardsContainer.innerHTML = '';
-            // Filter out health card from the main list as it has its own panel
-            const feedCards = data.cards.filter(c => c.card_type !== 'RanchHealthCard');
-            
-            feedCards.forEach(card => {
-                const el = document.createElement('div');
-                el.className = 'card-item';
-                if (card.action_status === 'resolved') {
-                    el.style.opacity = '0.5';
-                    el.style.pointerEvents = 'none';
-                }
-                
-                const statusClass = `status-${card.status}`;
-                const statusText = card.status.replace('_', ' ');
-                
-                let evidenceHtml = '';
-                if (card.evidence && card.evidence.length > 0) {
-                    evidenceHtml = '<ul class="evidence-list">';
-                    card.evidence.forEach(ev => {
-                        evidenceHtml += `<li>${ev}</li>`;
-                    });
-                    evidenceHtml += '</ul>';
-                }
+            if (domainStatusContainer) domainStatusContainer.innerHTML = '';
 
-                const notesHtml = card.notes ? `<div class="card-notes-display"><strong>Farmer Note:</strong> ${card.notes}</div>` : '';
-                
-                el.innerHTML = `
-                    <div class="card-header">
-                        <div class="pfkr-id">${card.pfkr_id || ''}</div>
-                        <div class="card-title">${card.card_type}</div>
-                        <div class="card-status ${statusClass}">${statusText}</div>
-                    </div>
-                    <div class="pfkr-domain">${card.pfkr_domain || ''}</div>
-                    <div class="card-meaning">${card.farmer_meaning || ''}</div>
-                    <div class="card-inspection">${card.suggested_inspection || ''}</div>
-                    <div class="card-evidence">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">EVIDENCE CHAIN</div>
-                        ${evidenceHtml}
-                    </div>
-                    ${notesHtml}
-                    <div class="card-actions">
-                        <button class="btn-action btn-primary" onclick="takeAction('${card.id}', 'resolved')">Resolve</button>
-                        <button class="btn-action" onclick="toggleNotes('${card.id}')">Add Note</button>
-                    </div>
-                    <div id="notes-area-${card.id}" class="card-notes-area" style="display:none;">
-                        <textarea class="card-notes-input" placeholder="Enter field observation..."></textarea>
-                        <button class="btn-action btn-primary" onclick="saveNote('${card.id}')">Save Note</button>
-                    </div>
-                `;
+            // 3. Filter and Sort
+            const operationalCards = data.cards.filter(c => c.card_type !== 'RanchHealthCard');
+            
+            // Priority Cards (Alert/Watch)
+            const priorityCards = operationalCards.filter(c => ['alert', 'watch', 'action'].includes(c.status));
+            // OK Cards
+            const okCards = operationalCards.filter(c => !['alert', 'watch', 'action'].includes(c.status));
+
+            // 4. Render Priority Strip (Top actionable items)
+            priorityCards.forEach(card => {
+                const el = createCardElement(card, false);
+                if (priorityStrip) priorityStrip.appendChild(el);
+            });
+
+            // 5. Render Operational Feed
+            // Priority cards are shown in full in the feed too
+            priorityCards.forEach(card => {
+                const el = createCardElement(card, false);
                 cardsContainer.appendChild(el);
             });
-            
+
+            // OK cards are shown based on toggle and are collapsed
+            if (showOkCards) {
+                okCards.forEach(card => {
+                    const el = createCardElement(card, true);
+                    cardsContainer.appendChild(el);
+                });
+            }
+
+            // 6. Update Domain Status Scorecard
+            renderDomainScorecard(data.cards);
+
         } catch (err) {
             console.error('Error fetching cards', err);
         }
+    }
+
+    function createCardElement(card, collapsed) {
+        const el = document.createElement('div');
+        el.className = 'card-item';
+        if (collapsed) el.classList.add('collapsed');
+        
+        if (card.action_status === 'resolved') {
+            el.style.opacity = '0.5';
+            el.style.pointerEvents = 'none';
+        }
+        
+        const statusClass = `status-${card.status}`;
+        const statusText = card.status.replace('_', ' ');
+        
+        let evidenceHtml = '';
+        if (card.evidence && card.evidence.length > 0) {
+            evidenceHtml = '<ul class="evidence-list">';
+            card.evidence.forEach(ev => {
+                evidenceHtml += `<li>${ev}</li>`;
+            });
+            evidenceHtml += '</ul>';
+        }
+
+        const notesHtml = card.notes ? `<div class="card-notes-display"><strong>Farmer Note:</strong> ${card.notes}</div>` : '';
+        
+        el.innerHTML = `
+            <div class="card-header">
+                <div class="pfkr-id">${card.pfkr_id || ''}</div>
+                <div class="card-title">${card.card_type}</div>
+                <div class="card-status ${statusClass}">${statusText}</div>
+            </div>
+            <div class="pfkr-domain">${card.pfkr_domain || ''}</div>
+            <div class="card-meaning">${card.farmer_meaning || ''}</div>
+            <div class="card-inspection">${card.suggested_inspection || ''}</div>
+            <div class="card-evidence">
+                <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">EVIDENCE CHAIN</div>
+                ${evidenceHtml}
+            </div>
+            ${notesHtml}
+            <div class="card-actions">
+                <button class="btn-action btn-primary" onclick="takeAction('${card.id}', 'resolved')">Resolve</button>
+                <button class="btn-action" onclick="toggleNotes('${card.id}')">Add Note</button>
+            </div>
+            <div id="notes-area-${card.id}" class="card-notes-area" style="display:none;">
+                <textarea class="card-notes-input" placeholder="Enter field observation..."></textarea>
+                <button class="btn-action btn-primary" onclick="saveNote('${card.id}')">Save Note</button>
+            </div>
+        `;
+        return el;
+    }
+
+    function renderDomainScorecard(cards) {
+        if (!domainStatusContainer) return;
+        
+        const domains = [
+            { id: 'water', label: 'Water', pfkr: 'PFKR-1' },
+            { id: 'plant', label: 'Plant', pfkr: 'PFKR-4' },
+            { id: 'livestock', label: 'Livestock', pfkr: 'PFKR-5' },
+            { id: 'infra', label: 'Infra', pfkr: 'PFKR-8' }
+        ];
+
+        domains.forEach(dom => {
+            const domainCards = cards.filter(c => c.pfkr_id === dom.pfkr);
+            let status = 'ok';
+            if (domainCards.some(c => c.status === 'alert')) status = 'alert';
+            else if (domainCards.some(c => c.status === 'watch' || c.status === 'action')) status = 'watch';
+
+            const el = document.createElement('div');
+            el.className = 'domain-status-item';
+            el.innerHTML = `
+                <div class="domain-info">
+                    <span class="domain-label">${dom.label}</span>
+                    <span class="domain-value">${dom.pfkr}</span>
+                </div>
+                <div class="dot pulse" style="background-color: var(--status-${status});"></div>
+            `;
+            domainStatusContainer.appendChild(el);
+        });
     }
 
     // Card Actions

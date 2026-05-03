@@ -68,12 +68,14 @@ def test_source_and_layer_registries(client):
     assert "knowledge_requirements" in layers[0]
 
 def test_weather_observation_ingest(client):
+    # Use current time to avoid staleness filtering in get_zone_weather_summary
+    now = datetime.now(timezone.utc).isoformat()
     # 1. Post weather observation (Rainfall)
     payload = {
         "schema": "sais.observation.v1",
         "node_id": "weather-station-1",
         "farm_id": "local",
-        "timestamp": "2026-05-02T14:00:00Z",
+        "timestamp": now,
         "measurement_id": "weather.rainfall.hourly",
         "layer": "Weather",
         "value": 12.5,
@@ -94,13 +96,15 @@ def test_weather_observation_ingest(client):
     assert weather_cards[0]["pfkr_id"] == "PFKR-7"
 
 def test_weather_impacts_water_retention(client):
+    # Use current time
+    now = datetime.now(timezone.utc).isoformat()
     # 1. Post heavy rain
     payload = {
         "schema": "sais.observation.v1",
         "node_id": "weather-station-1",
         "farm_id": "local",
         "zone_id": "zone-1", # Associate with zone for retention trigger
-        "timestamp": "2026-05-02T15:00:00Z",
+        "timestamp": now,
         "measurement_id": "weather.rainfall.hourly",
         "layer": "Weather",
         "value": 25.0,
@@ -118,12 +122,13 @@ def test_weather_impacts_water_retention(client):
     assert any("recent rainfall detected (last 24h): 25.0mm" in ev for ev in retention_cards[0]["evidence"])
     
 def test_weather_registry_visibility(client):
+    now = datetime.now(timezone.utc).isoformat()
     # 1. Post weather observation
     payload = {
         "schema": "sais.observation.v1",
         "node_id": "weather-station-1",
         "farm_id": "local",
-        "timestamp": "2026-05-02T16:00:00Z",
+        "timestamp": now,
         "measurement_id": "weather.air_temperature",
         "layer": "Weather",
         "value": 22.0,
@@ -166,5 +171,3 @@ def test_stale_weather_ignored(client):
     weather_cards = [c for c in cards if c["card_type"] == "WeatherContextCard"]
     assert len(weather_cards) > 0
     assert "no recent weather telemetry found" in weather_cards[0]["context"]
-
-
