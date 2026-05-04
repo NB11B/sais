@@ -51,6 +51,15 @@
 
     <main class="admin-container">
         <section class="wizard-panel">
+            <!-- 0. SECURITY -->
+            <div class="wizard-step">
+                <h3>0. Authentication</h3>
+                <div class="form-group">
+                    <label>Admin Bearer Token</label>
+                    <input type="password" id="admin_token_input" class="form-control" placeholder="Enter token...">
+                    <button type="button" class="btn btn-outline btn-small" style="margin-top:8px;" onclick="saveTokenFromInput()">Save to Session</button>
+                </div>
+            </div>
 
             <!-- 1. FARM -->
             <div class="wizard-step">

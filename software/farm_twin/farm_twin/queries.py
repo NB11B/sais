@@ -33,8 +33,12 @@ def get_zone_water_risk_summary(graph: FarmGraph, farm_id: str, zone_id: str):
     
     if row:
         obs = json.loads(row[0])
-        raw_val = obs.get("value")
-        depth = obs.get("source", {}).get("depth_cm", "unknown")
+        if obs is None:
+            evidence.append("latest moisture observation payload is empty")
+        else:
+            raw_val = obs.get("value")
+            source_meta = obs.get("source") or {}
+            depth = source_meta.get("depth_cm", "unknown")
         
         try:
             if raw_val is not None:

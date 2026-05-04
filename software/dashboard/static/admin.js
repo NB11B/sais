@@ -14,11 +14,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadPendingNodes();
     setupProvisionForm();
     loadRoleTemplates();
+
+    const tokenInput = document.getElementById('admin_token_input');
+    if (tokenInput) {
+        tokenInput.value = getAdminToken();
+    }
 });
 
 async function loadRoleTemplates() {
     try {
-        const res = await fetch('/api/nodes/roles');
+        const res = await fetch('/api/nodes/roles', {
+            headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+        });
         const data = await res.json();
         const select = document.getElementById('prov-role');
         if (select) {
@@ -34,30 +41,79 @@ async function loadRoleTemplates() {
     } catch (e) { console.error("Failed to load role templates", e); }
 }
 
+function getAdminToken() {
+    return sessionStorage.getItem('sais_admin_token') || '';
+}
+
+function setAdminToken(token) {
+    sessionStorage.setItem('sais_admin_token', token);
+}
+
+window.saveTokenFromInput = () => {
+    const input = document.getElementById('admin_token_input');
+    if (input) {
+        setAdminToken(input.value);
+        alert("Token saved to session.");
+        location.reload(); // Refresh to apply to all fetches
+    }
+};
+
 async function loadPendingNodes() {
     try {
-        const res = await fetch('/api/nodes/pending');
+        const res = await fetch('/api/nodes/pending', {
+            headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+        });
         const data = await res.json();
         const body = document.getElementById('pending-nodes-body');
         body.innerHTML = '';
         
         data.nodes.forEach(node => {
             const row = document.createElement('tr');
-            const rssi = node.payload?.rssi || 'N/A';
-            const batt = node.payload?.battery || 'N/A';
             
-            row.innerHTML = `
-                <td><b>${node.id}</b></td>
-                <td><span class="badge badge-status-pending">DISCOVERED</span></td>
-                <td>
-                    <span class="badge badge-rssi">${rssi} dBm</span>
-                    <span class="badge badge-battery">${batt} mV</span>
-                </td>
-                <td>
-                    <button class="btn btn-small" onclick="openProvisionModal('${node.id}')">Provision</button>
-                    <button class="btn btn-small" style="background:#ef4444" onclick="rejectNode('${node.id}')">Reject</button>
-                </td>
-            `;
+            // WP25.1: XSS Remediation - TextContent only
+            const tdId = document.createElement('td');
+            const bId = document.createElement('b');
+            bId.textContent = node.id;
+            tdId.appendChild(bId);
+            row.appendChild(tdId);
+            
+            const tdStatus = document.createElement('td');
+            const spanStatus = document.createElement('span');
+            spanStatus.className = 'badge badge-status-pending';
+            spanStatus.textContent = 'DISCOVERED';
+            tdStatus.appendChild(spanStatus);
+            row.appendChild(tdStatus);
+            
+            const tdSignal = document.createElement('td');
+            const rssi = node.payload?.rssi_dbm || node.payload?.rssi || 'N/A';
+            const batt = node.payload?.battery_mv || node.payload?.battery || 'N/A';
+            
+            const spanRssi = document.createElement('span');
+            spanRssi.className = 'badge badge-rssi';
+            spanRssi.textContent = `${rssi} dBm`;
+            tdSignal.appendChild(spanRssi);
+            
+            const spanBatt = document.createElement('span');
+            spanBatt.className = 'badge badge-battery';
+            spanBatt.textContent = `${batt} mV`;
+            tdSignal.appendChild(spanBatt);
+            row.appendChild(tdSignal);
+            
+            const tdActions = document.createElement('td');
+            const btnProv = document.createElement('button');
+            btnProv.className = 'btn btn-small';
+            btnProv.textContent = 'Provision';
+            btnProv.onclick = () => openProvisionModal(node.id);
+            tdActions.appendChild(btnProv);
+            
+            const btnReject = document.createElement('button');
+            btnReject.className = 'btn btn-small';
+            btnReject.style.background = '#ef4444';
+            btnReject.textContent = 'Reject';
+            btnReject.onclick = () => rejectNode(node.id);
+            tdActions.appendChild(btnReject);
+            
+            row.appendChild(tdActions);
             body.appendChild(row);
         });
     } catch (e) { console.error("Failed to load pending nodes", e); }
@@ -88,7 +144,10 @@ function setupProvisionForm() {
         };
         
         // 1. Accept
-        await fetch(`/api/nodes/${nodeId}/accept`, { method: 'POST' });
+        await fetch(`/api/nodes/${nodeId}/accept`, { 
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+        });
         // 2. Assign
         await submitApi(`/api/nodes/${nodeId}/assignment`, 'PUT', payload);
         
@@ -99,14 +158,19 @@ function setupProvisionForm() {
 
 async function rejectNode(nodeId) {
     if (confirm(`Reject node ${nodeId}? Data will be blocked.`)) {
-        await fetch(`/api/nodes/${nodeId}/reject`, { method: 'POST' });
+        await fetch(`/api/nodes/${nodeId}/reject`, { 
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+        });
         loadPendingNodes();
     }
 }
 
 async function loadMapData() {
     try {
-        const res = await fetch('/api/graph');
+        const res = await fetch('/api/graph', {
+            headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+        });
         const data = await res.json();
         
         // Clear old layers
@@ -316,9 +380,19 @@ async function submitApi(url, method, payload) {
     try {
         const res = await fetch(url, {
             method: method,
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getAdminToken()}`
+            },
             body: JSON.stringify(payload)
         });
+        if (res.status === 401) {
+            const token = prompt("Admin Token required:");
+            if (token) {
+                setAdminToken(token);
+                return submitApi(url, method, payload);
+            }
+        }
         if (!res.ok) {
             const txt = await res.text();
             alert("Error: " + txt);

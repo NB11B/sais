@@ -36,6 +36,8 @@ class GraphStorage:
                 measurement_id TEXT, 
                 value REAL,
                 layer TEXT,
+                sequence INTEGER,
+                payload_hash TEXT,
                 payload_json TEXT
             )
         ''')
@@ -108,6 +110,7 @@ class GraphStorage:
                 asset_id TEXT,
                 first_seen TEXT,
                 last_seen TEXT,
+                last_sequence INTEGER DEFAULT 0,
                 capabilities_json TEXT,
                 config_json TEXT,
                 payload_json TEXT
@@ -167,6 +170,20 @@ class GraphStorage:
             cursor.execute("ALTER TABLE cards ADD COLUMN updated_at TEXT")
             self.conn.commit()
 
+        # 4. Anti-replay columns
+        cursor.execute("PRAGMA table_info(observations)")
+        obs_cols = {row[1] for row in cursor.fetchall()}
+        if "sequence" not in obs_cols:
+            cursor.execute("ALTER TABLE observations ADD COLUMN sequence INTEGER")
+            cursor.execute("ALTER TABLE observations ADD COLUMN payload_hash TEXT")
+            self.conn.commit()
+
+        cursor.execute("PRAGMA table_info(node_registry)")
+        reg_cols = {row[1] for row in cursor.fetchall()}
+        if "last_sequence" not in reg_cols:
+            cursor.execute("ALTER TABLE node_registry ADD COLUMN last_sequence INTEGER DEFAULT 0")
+            self.conn.commit()
+
     def add_node(self, node_id: str, node_type: str, payload: dict):
         cursor = self.conn.cursor()
         cursor.execute(
@@ -183,7 +200,7 @@ class GraphStorage:
         )
         self.conn.commit()
 
-    def add_observation(self, obs_id: str, node_id: str, timestamp: str, farm_id: str, field_id: str, zone_id: str, measurement_id: str, value: float, layer: str, payload: dict):
+    def add_observation(self, obs_id: str, node_id: str, timestamp: str, farm_id: str, field_id: str, zone_id: str, measurement_id: str, value: float, layer: str, payload: dict, sequence: int = None, payload_hash: str = None):
         cursor = self.conn.cursor()
         
         # WP19: Check node status for trust/confidence
@@ -194,9 +211,20 @@ class GraphStorage:
         if node_status != "accepted":
             payload["confidence"] = "low"
             
+        # WP25.1: Strict INSERT for anti-replay (replaces INSERT OR REPLACE)
         cursor.execute(
-            "INSERT OR REPLACE INTO observations (id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (obs_id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, json.dumps(payload))
+            "INSERT INTO observations (id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, sequence, payload_hash, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (obs_id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, sequence, payload_hash, json.dumps(payload))
+        )
+        self.conn.commit()
+
+    def add_quarantined_observation(self, obs_id: str, node_id: str, timestamp: str, farm_id: str, measurement_id: str, value: float, layer: str, payload: dict):
+        """Stores observation in the main table but without any graph links or side effects."""
+        cursor = self.conn.cursor()
+        payload["confidence"] = "quarantined"
+        cursor.execute(
+            "INSERT OR REPLACE INTO observations (id, node_id, timestamp, farm_id, measurement_id, value, layer, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (obs_id, node_id, timestamp, farm_id, measurement_id, value, layer, json.dumps(payload))
         )
         self.conn.commit()
 

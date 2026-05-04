@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import Response, JSONResponse
 
 # Add farm_twin to python path
 sais_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(sais_root, 'software', 'farm_twin'))
 
 from farm_twin.graph import FarmGraph
 from farm_twin.gis_registry import GisRegistry
-from auth import require_admin
+from auth import require_admin, require_node_auth
 
 app = FastAPI(title="SAIS Dashboard API")
 gis_registry = GisRegistry()
@@ -38,7 +38,18 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Referrer-Policy"] = "strict-origin"
+        # WP25.1: Content Security Policy
+        # Note: Allows inline script/style for now due to existing dashboard patterns, 
+        # but restricts to same-origin + trusted CDNs for maps/fonts.
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: https://*.tile.openstreetmap.org; "
+            "connect-src 'self';"
+        )
         return response
 
 app.add_middleware(SecurityHeadersMiddleware)
@@ -131,16 +142,34 @@ async def get_observations(limit: int = 20):
 
 from schemas import ObservationPayload, PlantObservationPayload, SoilObservationPayload, InfrastructureStatusPayload
 
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc)},
+    )
+
+@app.exception_handler(Exception)
+async def catch_all_handler(request: Request, exc: Exception):
+    import traceback
+    print(traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+    )
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
 @app.post("/api/observations")
-async def post_observation(payload: ObservationPayload, admin=Depends(require_admin)):
+async def post_observation(data: ObservationPayload, auth=Depends(require_node_auth)):
     from farm_twin.ingest_observation import ingest_sensor_observation_payload
     from farm_twin.cards import generate_water_retention_card
     
-    data = payload.model_dump(by_alias=True)
+    data = data.model_dump(by_alias=True)
     graph = get_graph()
     
     try:

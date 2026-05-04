@@ -1,5 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
     
+    function getAdminToken() {
+        return sessionStorage.getItem('sais_admin_token') || '';
+    }
+
+    function setAdminToken(token) {
+        sessionStorage.setItem('sais_admin_token', token);
+    }
+    
     // Elements
     const cardsContainer = document.getElementById('cards-container');
     const cardsCount = document.getElementById('cards-count');
@@ -126,7 +134,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('/api/soil/observations', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAdminToken()}`
+                    },
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
@@ -153,7 +164,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('/api/infrastructure/status', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAdminToken()}`
+                    },
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
@@ -184,7 +198,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('/api/plant/observations', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAdminToken()}`
+                    },
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
@@ -219,7 +236,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('/api/observations', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAdminToken()}`
+                    },
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
@@ -265,7 +285,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('/api/livestock/observations', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAdminToken()}`
+                    },
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
@@ -435,11 +458,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // Card Actions
     window.takeAction = async (cardId, status) => {
         try {
-            await fetch(`/api/cards/${cardId}/action`, {
+            const res = await fetch(`/api/cards/${cardId}/action`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getAdminToken()}`
+                },
                 body: JSON.stringify({ status })
             });
+            if (res.status === 401) {
+                const token = prompt("Admin Token required:");
+                if (token) {
+                    setAdminToken(token);
+                    return takeAction(cardId, status);
+                }
+            }
             fetchCards();
         } catch (err) {
             console.error('Error taking action', err);
@@ -457,11 +490,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const notes = input.value;
         
         try {
-            await fetch(`/api/cards/${cardId}/action`, {
+            const res = await fetch(`/api/cards/${cardId}/action`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getAdminToken()}`
+                },
                 body: JSON.stringify({ notes })
             });
+            if (res.status === 401) {
+                const token = prompt("Admin Token required:");
+                if (token) {
+                    setAdminToken(token);
+                    return saveNote(cardId);
+                }
+            }
             fetchCards();
         } catch (err) {
             console.error('Error saving note', err);

@@ -29,6 +29,7 @@ from auth import ADMIN_TOKEN
 client = TestClient(app, raise_server_exceptions=False)
 
 VALID_HEADERS = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
+NODE_HEADERS = {"Authorization": f"Bearer {os.environ.get('SAIS_NODE_TOKEN', ADMIN_TOKEN)}"}
 
 # --- Test Data ---
 
@@ -45,7 +46,9 @@ def _make_observation(node_id="test-node-001", value=0.25):
         "value": value,
         "unit": "m3/m3",
         "measurement_basis": "direct",
-        "confidence": "medium"
+        "confidence": "medium",
+        "sequence": 100,
+        "payload_hash": "hash-123"
     }
 
 def _make_farm():
@@ -133,6 +136,12 @@ class TestAuthorizedAccess:
         assert resp.status_code == 200
         assert resp.json()["status"] == "success"
 
+    def test_post_observation_node_auth(self):
+        """Observation succeeds with node token."""
+        client.put("/api/farm/profile", json=_make_farm(), headers=VALID_HEADERS)
+        resp = client.post("/api/observations", json=_make_observation(), headers=NODE_HEADERS)
+        assert resp.status_code == 200
+
 
 # --- 3. Pending Node Quarantine ---
 
@@ -170,6 +179,22 @@ class TestNodeQuarantine:
         resp = client.post("/api/observations", json=obs, headers=VALID_HEADERS)
         assert resp.status_code == 200
         assert resp.json()["quarantined"] is False
+
+    def test_quarantined_node_does_not_mutate_graph(self):
+        """Data from quarantined nodes does not create nodes in the graph."""
+        client.put("/api/farm/profile", json=_make_farm(), headers=VALID_HEADERS)
+        obs = _make_observation("unknown-node")
+        obs["measurement_id"] = "quarantine.secret.metric"
+        
+        # Submit observation (gets quarantined)
+        client.post("/api/observations", json=obs, headers=VALID_HEADERS)
+        
+        # Check graph
+        resp = client.get("/api/graph")
+        graph_data = resp.json()
+        node_ids = [n["id"] for n in graph_data["nodes"]]
+        assert "unknown-node" not in node_ids
+        assert "quarantine.secret.metric" not in node_ids
 
 
 # --- 4. Node Hello Open Access ---
@@ -257,6 +282,16 @@ class TestSchemaValidation:
         resp = client.put("/api/farm/profile", json=farm, headers=VALID_HEADERS)
         assert resp.status_code == 422
 
+    def test_invalid_geojson_oversized_rejected(self):
+        """Oversized GeoJSON is rejected by schema."""
+        farm = _make_farm()
+        farm["boundary_geojson"] = {
+            "type": "Polygon",
+            "coordinates": [[[0,0], [0,1], [1,1], [0,0]]] * 10000 # very large
+        }
+        resp = client.put("/api/farm/profile", json=farm, headers=VALID_HEADERS)
+        assert resp.status_code == 422
+
 
 # --- 6. Read-Only Routes Remain Open ---
 
@@ -303,4 +338,58 @@ class TestSecurityHeaders:
 
     def test_referrer_policy(self):
         resp = client.get("/health")
-        assert resp.headers.get("referrer-policy") == "strict-origin-when-cross-origin"
+        assert resp.headers.get("referrer-policy") == "strict-origin"
+
+    def test_content_security_policy(self):
+        resp = client.get("/health")
+        csp = resp.headers.get("content-security-policy")
+        assert "default-src 'self'" in csp
+        assert "script-src 'self' 'unsafe-inline'" in csp
+
+# --- 8. Anti-Replay ---
+
+class TestAntiReplay:
+    """Sequence and hash checks prevent duplicate data ingestion."""
+
+    def test_sequence_replay_rejected(self):
+        """Lower or equal sequence numbers are rejected."""
+        # Register and accept node
+        client.put("/api/farm/profile", json=_make_farm(), headers=VALID_HEADERS)
+        client.post("/api/nodes/hello", json=_make_node_hello("seq-node"))
+        client.post("/api/nodes/seq-node/accept", headers=VALID_HEADERS)
+        
+        # 1. First observation (seq 100)
+        obs1 = _make_observation("seq-node")
+        obs1["sequence"] = 100
+        resp = client.post("/api/observations", json=obs1, headers=VALID_HEADERS)
+        assert resp.status_code == 200
+        
+        # 2. Replay (seq 100) -> Rejected
+        resp = client.post("/api/observations", json=obs1, headers=VALID_HEADERS)
+        assert resp.status_code == 400 or resp.status_code == 500 # Depending on how ValueError is handled
+        assert "Sequence replay" in resp.text
+        
+        # 3. Old sequence (seq 99) -> Rejected
+        obs2 = _make_observation("seq-node")
+        obs2["sequence"] = 99
+        resp = client.post("/api/observations", json=obs2, headers=VALID_HEADERS)
+        assert "Sequence replay" in resp.text
+
+    def test_hash_replay_rejected(self):
+        """Identical payload hashes are rejected."""
+        client.put("/api/farm/profile", json=_make_farm(), headers=VALID_HEADERS)
+        client.post("/api/nodes/hello", json=_make_node_hello("hash-node"))
+        client.post("/api/nodes/hash-node/accept", headers=VALID_HEADERS)
+        
+        obs1 = _make_observation("hash-node")
+        obs1["payload_hash"] = "unique-hash-abc"
+        obs1["sequence"] = 10
+        resp = client.post("/api/observations", json=obs1, headers=VALID_HEADERS)
+        assert resp.status_code == 200
+        
+        # 2. Duplicate hash -> Rejected
+        obs2 = _make_observation("hash-node")
+        obs2["payload_hash"] = "unique-hash-abc"
+        obs2["sequence"] = 11
+        resp = client.post("/api/observations", json=obs2, headers=VALID_HEADERS)
+        assert "Duplicate payload hash" in resp.text

@@ -50,11 +50,47 @@ def ingest_sensor_observation_payload(graph: FarmGraph, data: dict):
     Links the sensor to its zone, connects it to the measurement ontology,
     and stores the observation reading.
     """
-    obs_id = f"obs-{data['timestamp']}-{data['node_id']}"
+    node_id = data["node_id"]
+    obs_id = f"obs-{data['timestamp']}-{node_id}"
     source = data.get("source") or {}
     
+    # WP25.1: Isolation Check
+    # If the node is not accepted, store in quarantine ONLY. No graph mutation.
+    registry = graph.storage.get_node_registry(node_id)
+    node_status = registry["status"] if registry else "pending"
+    
+    if node_status != "accepted":
+        # Isolated storage path
+        graph.storage.add_quarantined_observation(
+            obs_id, node_id, data["timestamp"], data["farm_id"],
+            data["measurement_id"], data["value"], data["layer"], data
+        )
+        return f"quarantined-{obs_id}"
+
+    # WP25.1: Anti-Replay / Sequence Check
+    new_sequence = data.get("sequence")
+    if new_sequence is not None:
+        last_sequence = registry.get("last_sequence", 0) if registry else 0
+        if new_sequence <= last_sequence:
+            # Replay or out-of-order
+            raise ValueError(f"Sequence replay detected for node {node_id}: {new_sequence} <= {last_sequence}")
+        
+        # Update last_sequence in registry
+        graph.storage.update_node_registry(node_id, last_seen=data["timestamp"])
+        # We need a small hack to update last_sequence since update_node_registry doesn't take it yet
+        cursor = graph.storage.conn.cursor()
+        cursor.execute("UPDATE node_registry SET last_sequence = ? WHERE id = ?", (new_sequence, node_id))
+        graph.storage.conn.commit()
+
+    # WP25.1: Payload Hash Check
+    payload_hash = data.get("payload_hash")
+    if payload_hash:
+        cursor = graph.storage.conn.cursor()
+        cursor.execute("SELECT id FROM observations WHERE node_id = ? AND payload_hash = ?", (node_id, payload_hash))
+        if cursor.fetchone():
+            raise ValueError(f"Duplicate payload hash detected for node {node_id}: {payload_hash}")
+
     # 1. Ensure SensorNode exists
-    node_id = data["node_id"]
     if not graph.get_node(node_id):
         sensor = SensorNode(
             id=node_id,
@@ -103,7 +139,8 @@ def ingest_sensor_observation_payload(graph: FarmGraph, data: dict):
     graph.storage.add_observation(
         obs.id, obs.node_id, obs.timestamp, obs.farm_id, 
         data.get("field_id"), data.get("zone_id"), 
-        obs.measurement_id, obs.value, obs.layer, obs.__dict__
+        obs.measurement_id, obs.value, obs.layer, data,
+        sequence=new_sequence, payload_hash=payload_hash
     )
     
     # Also link it in the graph for traversal

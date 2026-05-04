@@ -34,6 +34,7 @@ def _get_admin_token() -> str:
 
 # Resolve once at import time
 ADMIN_TOKEN = _get_admin_token()
+NODE_TOKEN = os.environ.get("SAIS_NODE_TOKEN", ADMIN_TOKEN) # Fallback to admin if not set
 
 async def require_admin(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
@@ -43,10 +44,35 @@ async def require_admin(
     Checks Authorization: Bearer <token> header against SAIS_ADMIN_TOKEN.
     Returns the token string on success, raises 401 on failure.
     """
-    if credentials is None or credentials.credentials != ADMIN_TOKEN:
+    if credentials is None or not secrets.compare_digest(credentials.credentials, ADMIN_TOKEN):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Admin authentication required. Provide Authorization: Bearer <token>.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return credentials.credentials
+
+async def require_node_auth(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+) -> str:
+    """
+    FastAPI dependency that enforces node authentication.
+    Allows either ADMIN_TOKEN or NODE_TOKEN.
+    """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Node authentication required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    is_admin = secrets.compare_digest(credentials.credentials, ADMIN_TOKEN)
+    is_node = secrets.compare_digest(credentials.credentials, NODE_TOKEN)
+    
+    if not (is_admin or is_node):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid node or admin token.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return credentials.credentials

@@ -17,16 +17,24 @@ _ID_MAX = 128
 
 # --- Shared Validators ---
 
-def _validate_timestamp_str(v: str) -> str:
+def _validate_timestamp_str(v: str, allow_historical: bool = False) -> str:
     """Parse ISO timestamp, require UTC-compatible, reject large clock skew."""
     try:
         dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
     except (ValueError, TypeError):
         raise ValueError(f"Invalid ISO 8601 timestamp: {v}")
+    
     now = datetime.now(timezone.utc)
-    skew = abs((now - dt).total_seconds())
-    if skew > 86400:  # 24 hours
-        raise ValueError(f"Timestamp skew too large ({skew:.0f}s). Must be within 24h of server time.")
+    skew = (now - dt).total_seconds()
+    
+    # Future check (always rejected)
+    if skew < -3600: # 1 hour future max for clock drift
+        raise ValueError(f"Timestamp is in the future ({abs(skew):.0f}s).")
+    
+    # Historical check (strict for live telemetry)
+    if not allow_historical and skew > 86400:  # 24 hours
+        raise ValueError(f"Timestamp skew too large ({skew:.0f}s). Must be within 24h for live data.")
+    
     return v
 
 
@@ -45,8 +53,8 @@ class GeoJSONValidator:
         # Size limit: reject deeply nested or oversized payloads
         import json
         serialized = json.dumps(v)
-        if len(serialized) > 500_000:  # 500 KB max for a single boundary
-            raise ValueError("GeoJSON payload too large (max 500KB)")
+        if len(serialized) > 100_000:  # 100 KB max for a single boundary
+            raise ValueError("GeoJSON payload too large (max 100KB)")
         # Coordinate bounds check for Polygon/MultiPolygon
         if geom_type in ("Polygon", "MultiPolygon"):
             coords = v.get("coordinates", [])
@@ -91,6 +99,9 @@ class ObservationPayload(BaseModel):
     source: Optional[Dict[str, Any]] = None
     measurement_basis: Optional[str] = Field(None, pattern=r'^(direct|derived|estimated|manual)$')
     confidence: Optional[str] = Field(None, pattern=r'^(low|medium|high|quarantined)$')
+    # WP25.1: Anti-replay fields
+    sequence: Optional[int] = Field(None, ge=0)
+    payload_hash: Optional[str] = Field(None, max_length=64)
 
     @field_validator("timestamp")
     @classmethod
@@ -141,7 +152,7 @@ class GrazingEventPayload(BaseModel):
     @field_validator("started_at")
     @classmethod
     def check_started(cls, v):
-        return _validate_timestamp_str(v)
+        return _validate_timestamp_str(v, allow_historical=True)
 
 class LivestockObservationPayload(BaseModel):
     id: str = Field(..., min_length=1, max_length=_ID_MAX, pattern=_ID_PATTERN)
@@ -156,7 +167,7 @@ class LivestockObservationPayload(BaseModel):
     @field_validator("timestamp")
     @classmethod
     def check_timestamp(cls, v):
-        return _validate_timestamp_str(v)
+        return _validate_timestamp_str(v, allow_historical=True)
 
 
 # --- Sensor and Infrastructure Schemas ---
@@ -201,7 +212,7 @@ class PlantObservationPayload(BaseModel):
     @field_validator("timestamp")
     @classmethod
     def check_timestamp(cls, v):
-        return _validate_timestamp_str(v)
+        return _validate_timestamp_str(v, allow_historical=True)
 
 class SoilObservationPayload(BaseModel):
     schema_version: str = Field(alias="schema", default="sais.soil_observation.v1", max_length=64)
@@ -217,7 +228,7 @@ class SoilObservationPayload(BaseModel):
     @field_validator("timestamp")
     @classmethod
     def check_timestamp(cls, v):
-        return _validate_timestamp_str(v)
+        return _validate_timestamp_str(v, allow_historical=True)
 
 class InfrastructureStatusPayload(BaseModel):
     id: str = Field(..., min_length=1, max_length=_ID_MAX, pattern=_ID_PATTERN)
@@ -229,14 +240,14 @@ class InfrastructureStatusPayload(BaseModel):
 
 # --- WP25: Typed schemas for previously-untyped routes ---
 
-class InfrastructureAssetPayload(BaseModel):
+class InfrastructureAssetPayload(BaseModel, GeoJSONValidator):
     """Typed schema for POST /api/infrastructure/asset (replaces Dict[str, Any])."""
     id: str = Field(..., min_length=1, max_length=_ID_MAX, pattern=_ID_PATTERN)
     farm_id: str = Field(..., min_length=1, max_length=_ID_MAX, pattern=_ID_PATTERN)
     asset_type: str = Field(..., min_length=1, max_length=64)
     name: str = Field(..., min_length=1, max_length=256)
     status: str = Field("unknown", max_length=32)
-    location_geojson: Optional[Dict[str, Any]] = None
+    boundary_geojson: Optional[Dict[str, Any]] = Field(None, alias="location_geojson")
     notes: Optional[str] = Field(None, max_length=2048)
 
 class WaterAssetPayload(BaseModel):
@@ -254,6 +265,11 @@ class WaterAssetPayload(BaseModel):
             return v
         if not isinstance(v, dict) or "lat" not in v or "lng" not in v:
             raise ValueError("Location must be a dict with 'lat' and 'lng'")
+        lat, lng = v["lat"], v["lng"]
+        if not isinstance(lat, (int, float)) or not (-90 <= lat <= 90):
+            raise ValueError("Latitude must be between -90 and 90")
+        if not isinstance(lng, (int, float)) or not (-180 <= lng <= 180):
+            raise ValueError("Longitude must be between -180 and 180")
         return v
 
 class NodeHelloPayload(BaseModel):
