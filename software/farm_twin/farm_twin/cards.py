@@ -431,3 +431,79 @@ def generate_source_health_card(graph: FarmGraph, farm_id: str):
     
     graph.storage.add_card(f"card-source-health-{farm_id}", now.isoformat(), card["card_type"], card["status"], card)
     return card
+def generate_diagnostic_cards(graph: FarmGraph, farm_id: str, field_id: str = None, zone_id: str = None, paddock_id: str = None, asset_id: str = None):
+    """
+    Uses the FarmDiagnosticEngine to generate intelligence cards based on 
+    multi-signal attention and diagnostic hypotheses.
+    """
+    from .diagnostic_engine import FarmDiagnosticEngine
+    engine = FarmDiagnosticEngine(graph)
+    
+    report = engine.diagnose_section(
+        farm_id=farm_id,
+        field_id=field_id,
+        zone_id=zone_id,
+        paddock_id=paddock_id,
+        asset_id=asset_id
+    )
+    
+    now = datetime.now(timezone.utc)
+    cards_generated = []
+    
+    # 1. Generate cards for Attention Aggregates
+    for agg in report.attention_aggregates:
+        card_id = f"card-attention-{agg.aggregate_id}-{zone_id or field_id or paddock_id or asset_id or 'farm'}"
+        card = {
+            "card_type": "AttentionCard",
+            "pfkr_id": "PFKR-ATTENTION",
+            "pfkr_domain": f"Attention: {agg.domain.replace('_', ' ').title()}",
+            "title": agg.title,
+            "status": agg.priority,
+            "domain": agg.domain,
+            "score": agg.score,
+            "location": {
+                "farm_id": farm_id,
+                "field_id": field_id,
+                "zone_id": zone_id,
+                "paddock_id": paddock_id,
+                "asset_id": asset_id
+            },
+            "observation": agg.description,
+            "evidence": agg.supporting_evidence,
+            "farmer_meaning": "This combination of signals deserves attention before a final diagnosis is made.",
+            "suggested_inspection": agg.suggested_focus,
+            "confidence": "medium"
+        }
+        graph.storage.add_card(card_id, now.isoformat(), card["card_type"], card["status"], card)
+        cards_generated.append(card)
+        
+    # 2. Generate cards for top Ranked Interpretations
+    for interp in report.ranked_interpretations[:2]: # Only top 2 hypotheses to avoid noise
+        card_id = f"card-diag-{interp.interpretation_id}-{zone_id or field_id or paddock_id or asset_id or 'farm'}"
+        card = {
+            "card_type": "DiagnosticCard",
+            "pfkr_id": "PFKR-DIAGNOSTIC",
+            "pfkr_domain": f"Diagnostic: {interp.domain.replace('_', ' ').title()}",
+            "title": f"Interpretation: {interp.symptom.replace('_', ' ').title()}",
+            "status": "watch" if interp.score < 0.7 else "action",
+            "domain": interp.domain,
+            "score": interp.score,
+            "confidence": interp.confidence,
+            "location": {
+                "farm_id": farm_id,
+                "field_id": field_id,
+                "zone_id": zone_id,
+                "paddock_id": paddock_id,
+                "asset_id": asset_id
+            },
+            "observation": interp.description,
+            "evidence": interp.supporting_evidence,
+            "missing_signals": interp.missing_signals,
+            "farmer_meaning": f"Likely cause: {interp.description}",
+            "suggested_inspection": interp.suggested_inspection,
+            "possible_interventions": ["Refer to methodology for detailed response steps"]
+        }
+        graph.storage.add_card(card_id, now.isoformat(), card["card_type"], card["status"], card)
+        cards_generated.append(card)
+        
+    return cards_generated

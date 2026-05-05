@@ -451,7 +451,9 @@ document.addEventListener('DOMContentLoaded', () => {
             { id: 'water', label: 'Water', pfkr: 'PFKR-1' },
             { id: 'plant', label: 'Plant', pfkr: 'PFKR-4' },
             { id: 'livestock', label: 'Livestock', pfkr: 'PFKR-5' },
-            { id: 'infra', label: 'Infra', pfkr: 'PFKR-8' }
+            { id: 'infra', label: 'Infra', pfkr: 'PFKR-8' },
+            { id: 'attention', label: 'Attention', pfkr: 'PFKR-ATTENTION' },
+            { id: 'diagnostic', label: 'Diagnostic', pfkr: 'PFKR-DIAGNOSTIC' }
         ];
 
         domains.forEach(dom => {

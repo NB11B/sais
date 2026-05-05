@@ -196,28 +196,33 @@ async def post_observation(data: ObservationPayload, auth=Depends(require_node_a
         if node_accepted:
             farm_id = data.get("farm_id")
             zone_id = data.get("zone_id")
+            field_id = data.get("field_id")
+            paddock_id = data.get("paddock_id")
             layer = data.get("layer")
             
             if farm_id:
-                # For cards that need a zone/field, we try to resolve them.
-                # Weather cards are often farm-wide but we'll link to a zone if available for the location object.
-                field_id = data.get("field_id")
+                # Resolve field/zone/paddock linkage if possible
                 if zone_id and not field_id:
                     zone_node = graph.get_node(zone_id)
                     field_id = zone_node["payload"].get("field_id") if zone_node else None
                 
+                # WP27: N-Signal Diagnostic & Attention Engine
+                from farm_twin.cards import generate_diagnostic_cards
+                generate_diagnostic_cards(
+                    graph, farm_id, 
+                    field_id=field_id, 
+                    zone_id=zone_id, 
+                    paddock_id=paddock_id
+                )
+                
+                # Context-specific cards
                 if layer == "Weather":
                     from farm_twin.cards import generate_weather_context_card
                     generate_weather_context_card(graph, farm_id, field_id, zone_id)
-                    # Rainfall also impacts water retention
+                elif layer == "SoilPhysics" or layer == "SoilWater":
+                    from farm_twin.cards import generate_water_retention_card
                     if field_id and zone_id:
                         generate_water_retention_card(graph, farm_id, field_id, zone_id)
-                elif layer == "SoilPhysics":
-                    if field_id and zone_id:
-                        generate_water_retention_card(graph, farm_id, field_id, zone_id)
-            
-            # Registry update now handled atomically in ingest_sensor_observation_payload
-            pass
             
             from farm_twin.cards import generate_ranch_health_card, generate_source_health_card
             generate_source_health_card(graph, farm_id)
