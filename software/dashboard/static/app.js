@@ -255,7 +255,16 @@ document.addEventListener('DOMContentLoaded', () => {
     async function populatePaddocks(selectEl) {
         if (!selectEl) return;
         try {
-            const res = await fetch('/api/graph');
+            const res = await fetch('/api/graph', {
+                headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+            });
+            if (res.status === 401) {
+                const token = prompt("Admin Token required:");
+                if (token) {
+                    setAdminToken(token);
+                    return populatePaddocks(selectEl);
+                }
+            }
             const data = await res.json();
             const paddocks = data.nodes.filter(n => n.labels.includes("Paddock"));
             
@@ -304,7 +313,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch Cards
     async function fetchCards() {
         try {
-            const res = await fetch('/api/cards');
+            const res = await fetch('/api/cards', {
+                headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+            });
+            if (res.status === 401) {
+                const token = prompt("Admin Token required:");
+                if (token) {
+                    setAdminToken(token);
+                    return fetchCards();
+                }
+            }
             const data = await res.json();
             
             cardsCount.textContent = data.cards.length;
@@ -514,7 +532,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch Observations
     async function fetchObservations() {
         try {
-            const res = await fetch('/api/observations');
+            const res = await fetch('/api/observations', {
+                headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+            });
+            if (res.status === 401) {
+                const token = prompt("Admin Token required:");
+                if (token) {
+                    setAdminToken(token);
+                    return fetchObservations();
+                }
+            }
             const data = await res.json();
             
             obsCount.textContent = data.observations.length;
@@ -550,7 +577,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch Graph State
     async function fetchGraphState() {
         try {
-            const res = await fetch('/api/graph');
+            const res = await fetch('/api/graph', {
+                headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+            });
+            if (res.status === 401) {
+                const token = prompt("Admin Token required:");
+                if (token) {
+                    setAdminToken(token);
+                    return fetchGraphState();
+                }
+            }
             const data = await res.json();
             
             graphNodesCount.textContent = data.counts.nodes;

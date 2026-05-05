@@ -26,6 +26,13 @@ async function loadRoleTemplates() {
         const res = await fetch('/api/nodes/roles', {
             headers: { 'Authorization': `Bearer ${getAdminToken()}` }
         });
+        if (res.status === 401) {
+            const token = prompt("Admin Token required:");
+            if (token) {
+                setAdminToken(token);
+                return loadRoleTemplates();
+            }
+        }
         const data = await res.json();
         const select = document.getElementById('prov-role');
         if (select) {
@@ -63,6 +70,13 @@ async function loadPendingNodes() {
         const res = await fetch('/api/nodes/pending', {
             headers: { 'Authorization': `Bearer ${getAdminToken()}` }
         });
+        if (res.status === 401) {
+            const token = prompt("Admin Token required:");
+            if (token) {
+                setAdminToken(token);
+                return loadPendingNodes();
+            }
+        }
         const data = await res.json();
         const body = document.getElementById('pending-nodes-body');
         body.innerHTML = '';
@@ -119,6 +133,23 @@ async function loadPendingNodes() {
     } catch (e) { console.error("Failed to load pending nodes", e); }
 }
 
+async function fetchCards() {
+    try {
+        const res = await fetch('/api/cards', {
+            headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+        });
+        if (res.status === 401) {
+            const token = prompt("Admin Token required:");
+            if (token) {
+                setAdminToken(token);
+                return fetchCards();
+            }
+        }
+        const data = await res.json();
+        return data;
+    } catch (e) { console.error("Failed to load cards", e); }
+}
+
 function openProvisionModal(nodeId) {
     document.getElementById('modal-node-id').textContent = `Provision Node: ${nodeId}`;
     document.getElementById('prov-node-id').value = nodeId;
@@ -171,6 +202,13 @@ async function loadMapData() {
         const res = await fetch('/api/graph', {
             headers: { 'Authorization': `Bearer ${getAdminToken()}` }
         });
+        if (res.status === 401) {
+            const token = prompt("Admin Token required:");
+            if (token) {
+                setAdminToken(token);
+                return loadMapData();
+            }
+        }
         const data = await res.json();
         
         // Clear old layers

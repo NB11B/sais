@@ -96,7 +96,7 @@ async def network_page(request: Request):
     return templates.TemplateResponse(request=request, name="network.html", context={"request": request, "active_page": "knowledge"})
 
 @app.get("/api/cards")
-async def get_cards():
+async def get_cards(admin=Depends(require_admin)):
     graph = get_graph()
     try:
         cursor = graph.storage.conn.cursor()
@@ -128,7 +128,7 @@ async def update_card_action(card_id: str, data: dict, admin=Depends(require_adm
         graph.storage.conn.close()
 
 @app.get("/api/observations")
-async def get_observations(limit: int = 20):
+async def get_observations(limit: int = 50, admin=Depends(require_admin)):
     graph = get_graph()
     try:
         cursor = graph.storage.conn.cursor()
@@ -154,10 +154,17 @@ async def value_error_handler(request: Request, exc: ValueError):
 @app.exception_handler(Exception)
 async def catch_all_handler(request: Request, exc: Exception):
     import traceback
+    # Log full traceback locally for forensics
     print(traceback.format_exc())
+    
+    # Generic error for production to prevent info leakage
+    detail = "Internal server error"
+    if os.environ.get("SAIS_ENV") == "development":
+        detail = str(exc)
+        
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc)},
+        content={"detail": detail},
     )
 
 @app.get("/health")
@@ -209,8 +216,8 @@ async def post_observation(data: ObservationPayload, auth=Depends(require_node_a
                     if field_id and zone_id:
                         generate_water_retention_card(graph, farm_id, field_id, zone_id)
             
-            # WP19: Update last_seen in registry (only for accepted nodes)
-            graph.storage.update_node_registry(node_id=node_id, last_seen=data["timestamp"])
+            # Registry update now handled atomically in ingest_sensor_observation_payload
+            pass
             
             from farm_twin.cards import generate_ranch_health_card, generate_source_health_card
             generate_source_health_card(graph, farm_id)
@@ -232,7 +239,7 @@ async def get_gis_data(asset_id: str):
     return data
 
 @app.get("/api/graph")
-async def get_graph_summary():
+async def get_graph_summary(admin=Depends(require_admin)):
     graph = get_graph()
     try:
         cursor = graph.storage.conn.cursor()
@@ -288,7 +295,7 @@ async def get_layers():
     return {"layers": registry.list_layers()}
 
 @app.get("/api/farm/profile")
-async def get_farm_profile():
+async def get_farm_profile(admin=Depends(require_admin)):
     graph = get_graph()
     try:
         # Simple assembly of the farm hierarchy from nodes
@@ -649,7 +656,7 @@ async def node_hello(payload: NodeHelloPayload):
         graph.storage.conn.close()
 
 @app.get("/api/nodes/pending")
-async def get_pending_nodes():
+async def get_pending_nodes(admin=Depends(require_admin)):
     graph = get_graph()
     try:
         nodes = graph.storage.get_nodes_by_status("pending")
@@ -658,7 +665,7 @@ async def get_pending_nodes():
         graph.storage.conn.close()
 
 @app.get("/api/nodes/active")
-async def get_active_nodes():
+async def get_active_nodes(admin=Depends(require_admin)):
     graph = get_graph()
     try:
         nodes = graph.storage.get_nodes_by_status("accepted")
@@ -721,7 +728,7 @@ async def update_node_assignment(node_id: str, data: NodeAssignmentPayload, admi
         graph.storage.conn.close()
 
 @app.get("/api/nodes/roles")
-async def get_node_roles():
+async def get_node_roles(admin=Depends(require_admin)):
     from farm_twin.provisioning import get_all_roles
     return {"roles": get_all_roles()}
 

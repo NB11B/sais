@@ -34,7 +34,24 @@ def _get_admin_token() -> str:
 
 # Resolve once at import time
 ADMIN_TOKEN = _get_admin_token()
-NODE_TOKEN = os.environ.get("SAIS_NODE_TOKEN", ADMIN_TOKEN) # Fallback to admin if not set
+
+# WP25.2: Production hardening. Disable fallback to ADMIN_TOKEN if SAIS_ENV=production.
+SAIS_ENV = os.environ.get("SAIS_ENV", "development").lower()
+NODE_TOKEN = os.environ.get("SAIS_NODE_TOKEN")
+
+if not NODE_TOKEN:
+    if SAIS_ENV == "production":
+        # In production, we MUST have a separate node token. 
+        # If not set, we use a different random one to prevent admin token reuse.
+        NODE_TOKEN = secrets.token_urlsafe(32)
+        print("!" * 60)
+        print("  WARNING: SAIS_ENV=production but SAIS_NODE_TOKEN not set.")
+        print("  Generated a random NODE_TOKEN to prevent Admin Token fallback.")
+        print(f"  NODE_TOKEN: {NODE_TOKEN}")
+        print("!" * 60)
+    else:
+        # Development fallback
+        NODE_TOKEN = ADMIN_TOKEN
 
 async def require_admin(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
@@ -58,6 +75,7 @@ async def require_node_auth(
     """
     FastAPI dependency that enforces node authentication.
     Allows either ADMIN_TOKEN or NODE_TOKEN.
+    In production mode, the tokens must be distinct.
     """
     if credentials is None:
         raise HTTPException(
@@ -66,8 +84,17 @@ async def require_node_auth(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    is_admin = secrets.compare_digest(credentials.credentials, ADMIN_TOKEN)
-    is_node = secrets.compare_digest(credentials.credentials, NODE_TOKEN)
+    token_val = credentials.credentials
+    is_admin = secrets.compare_digest(token_val, ADMIN_TOKEN)
+    is_node = secrets.compare_digest(token_val, NODE_TOKEN)
+    
+    # In production, we reject the admin token for node routes to prevent token leakage
+    # if a node is compromised.
+    if is_admin and SAIS_ENV == "production" and not is_node:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin token cannot be used for node operations in production.",
+        )
     
     if not (is_admin or is_node):
         raise HTTPException(
@@ -75,4 +102,4 @@ async def require_node_auth(
             detail="Invalid node or admin token.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return credentials.credentials
+    return token_val

@@ -3,7 +3,7 @@ import json
 
 class GraphStorage:
     def __init__(self, db_path=":memory:"):
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, isolation_level=None)
         self._init_db()
         self._migrate_db()
 
@@ -127,7 +127,7 @@ class GraphStorage:
                 payload_json TEXT
             )
         ''')
-        self.conn.commit()
+
 
     def _migrate_db(self):
         cursor = self.conn.cursor()
@@ -138,15 +138,15 @@ class GraphStorage:
         
         if "layer" not in cols:
             cursor.execute("ALTER TABLE observations ADD COLUMN layer TEXT")
-            self.conn.commit()
+
             
         if "node_id" not in cols:
             cursor.execute("ALTER TABLE observations ADD COLUMN node_id TEXT")
-            self.conn.commit()
+
 
         if "value" not in cols:
             cursor.execute("ALTER TABLE observations ADD COLUMN value REAL")
-            self.conn.commit()
+
             
             # 2. Backfill from payload_json
             cursor.execute("SELECT id, payload_json FROM observations")
@@ -159,7 +159,7 @@ class GraphStorage:
                 value = payload.get("value")
                 cursor.execute("UPDATE observations SET layer = ?, node_id = ?, value = ? WHERE id = ?", 
                              (layer, node_id, value, obs_id))
-            self.conn.commit()
+
 
         # 3. Check for card action columns
         cursor.execute("PRAGMA table_info(cards)")
@@ -168,7 +168,7 @@ class GraphStorage:
             cursor.execute("ALTER TABLE cards ADD COLUMN action_status TEXT DEFAULT 'pending'")
             cursor.execute("ALTER TABLE cards ADD COLUMN notes TEXT")
             cursor.execute("ALTER TABLE cards ADD COLUMN updated_at TEXT")
-            self.conn.commit()
+
 
         # 4. Anti-replay columns
         cursor.execute("PRAGMA table_info(observations)")
@@ -176,31 +176,28 @@ class GraphStorage:
         if "sequence" not in obs_cols:
             cursor.execute("ALTER TABLE observations ADD COLUMN sequence INTEGER")
             cursor.execute("ALTER TABLE observations ADD COLUMN payload_hash TEXT")
-            self.conn.commit()
 
         cursor.execute("PRAGMA table_info(node_registry)")
         reg_cols = {row[1] for row in cursor.fetchall()}
         if "last_sequence" not in reg_cols:
             cursor.execute("ALTER TABLE node_registry ADD COLUMN last_sequence INTEGER DEFAULT 0")
-            self.conn.commit()
 
-    def add_node(self, node_id: str, node_type: str, payload: dict):
+    def add_node(self, node_id: str, node_type: str, payload: dict, commit: bool = True):
         cursor = self.conn.cursor()
         cursor.execute(
             "INSERT OR REPLACE INTO nodes (id, type, payload_json) VALUES (?, ?, ?)",
             (node_id, node_type, json.dumps(payload))
         )
-        self.conn.commit()
 
-    def add_edge(self, edge_id: str, source_id: str, edge_type: str, target_id: str, payload: dict = None):
+    def add_edge(self, edge_id: str, source_id: str, edge_type: str, target_id: str, payload: dict = None, commit: bool = True):
         cursor = self.conn.cursor()
         cursor.execute(
             "INSERT OR REPLACE INTO edges (id, source_id, type, target_id, payload_json) VALUES (?, ?, ?, ?, ?)",
             (edge_id, source_id, edge_type, target_id, json.dumps(payload or {}))
         )
-        self.conn.commit()
 
-    def add_observation(self, obs_id: str, node_id: str, timestamp: str, farm_id: str, field_id: str, zone_id: str, measurement_id: str, value: float, layer: str, payload: dict, sequence: int = None, payload_hash: str = None):
+
+    def add_observation(self, obs_id: str, node_id: str, timestamp: str, farm_id: str, field_id: str, zone_id: str, measurement_id: str, value: float, layer: str, payload: dict, sequence: int = None, payload_hash: str = None, commit: bool = True):
         cursor = self.conn.cursor()
         
         # WP19: Check node status for trust/confidence
@@ -216,27 +213,27 @@ class GraphStorage:
             "INSERT INTO observations (id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, sequence, payload_hash, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (obs_id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, sequence, payload_hash, json.dumps(payload))
         )
-        self.conn.commit()
 
-    def add_quarantined_observation(self, obs_id: str, node_id: str, timestamp: str, farm_id: str, measurement_id: str, value: float, layer: str, payload: dict):
-        """Stores observation in the main table but without any graph links or side effects."""
+
+    def add_quarantined_observation(self, obs_id: str, node_id: str, timestamp: str, farm_id: str, measurement_id: str, value: float, layer: str, payload: dict, commit: bool = True):
+        """Stores observation in the main table with strict INSERT to ensure append-only forensics."""
         cursor = self.conn.cursor()
         payload["confidence"] = "quarantined"
         cursor.execute(
-            "INSERT OR REPLACE INTO observations (id, node_id, timestamp, farm_id, measurement_id, value, layer, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO observations (id, node_id, timestamp, farm_id, measurement_id, value, layer, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (obs_id, node_id, timestamp, farm_id, measurement_id, value, layer, json.dumps(payload))
         )
-        self.conn.commit()
 
-    def add_card(self, card_id: str, created_at: str, card_type: str, status: str, payload: dict):
+
+    def add_card(self, card_id: str, created_at: str, card_type: str, status: str, payload: dict, commit: bool = True):
         cursor = self.conn.cursor()
         cursor.execute(
             "INSERT OR REPLACE INTO cards (id, created_at, card_type, status, payload_json) VALUES (?, ?, ?, ?, ?)",
             (card_id, created_at, card_type, status, json.dumps(payload))
         )
-        self.conn.commit()
 
-    def add_grazing_event(self, event_id: str, farm_id: str, field_id: str, paddock_id: str, started_at: str, ended_at: str, animal_count: int, notes: str, payload: dict):
+
+    def add_grazing_event(self, event_id: str, farm_id: str, field_id: str, paddock_id: str, started_at: str, ended_at: str, animal_count: int, notes: str, payload: dict, commit: bool = True):
         cursor = self.conn.cursor()
         cursor.execute(
             """INSERT OR REPLACE INTO grazing_events 
@@ -244,7 +241,7 @@ class GraphStorage:
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (event_id, farm_id, field_id, paddock_id, started_at, ended_at, animal_count, notes, json.dumps(payload))
         )
-        self.conn.commit()
+
 
     def get_latest_grazing_event(self, paddock_id: str):
         cursor = self.conn.cursor()
@@ -255,7 +252,7 @@ class GraphStorage:
         row = cursor.fetchone()
         return json.loads(row[0]) if row else None
 
-    def add_livestock_observation(self, obs_id: str, farm_id: str, paddock_id: str, timestamp: str, bcs: float, manure_score: int, payload: dict):
+    def add_livestock_observation(self, obs_id: str, farm_id: str, paddock_id: str, timestamp: str, bcs: float, manure_score: int, payload: dict, commit: bool = True):
         cursor = self.conn.cursor()
         cursor.execute(
             """INSERT OR REPLACE INTO livestock_observations 
@@ -263,31 +260,31 @@ class GraphStorage:
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (obs_id, farm_id, paddock_id, timestamp, bcs, manure_score, json.dumps(payload))
         )
-        self.conn.commit()
 
-    def add_plant_observation(self, obs_id: str, farm_id: str, paddock_id: str, timestamp: str, forage_mass: float, cover: float, height: float, recovery_score: int, payload: dict):
+
+    def add_plant_observation(self, obs_id: str, farm_id: str, paddock_id: str, timestamp: str, forage_mass: float, cover: float, height: float, recovery_score: int, payload: dict, commit: bool = True):
         cursor = self.conn.cursor()
         cursor.execute(
             "INSERT OR REPLACE INTO plant_observations (id, farm_id, paddock_id, timestamp, forage_mass, cover, height, recovery_score, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (obs_id, farm_id, paddock_id, timestamp, forage_mass, cover, height, recovery_score, json.dumps(payload))
         )
-        self.conn.commit()
 
-    def add_soil_observation(self, obs_id: str, farm_id: str, paddock_id: str, timestamp: str, infiltration: float, payload: dict):
+
+    def add_soil_observation(self, obs_id: str, farm_id: str, paddock_id: str, timestamp: str, infiltration: float, payload: dict, commit: bool = True):
         cursor = self.conn.cursor()
         cursor.execute(
             "INSERT OR REPLACE INTO soil_observations (id, farm_id, paddock_id, timestamp, infiltration_mm_hr, payload_json) VALUES (?, ?, ?, ?, ?, ?)",
             (obs_id, farm_id, paddock_id, timestamp, infiltration, json.dumps(payload))
         )
-        self.conn.commit()
 
-    def add_infrastructure_asset(self, asset_id: str, farm_id: str, asset_type: str, status: str, payload: dict):
+
+    def add_infrastructure_asset(self, asset_id: str, farm_id: str, asset_type: str, status: str, payload: dict, commit: bool = True):
         cursor = self.conn.cursor()
         cursor.execute(
             "INSERT OR REPLACE INTO infrastructure_assets (id, farm_id, asset_type, status, payload_json) VALUES (?, ?, ?, ?, ?)",
             (asset_id, farm_id, asset_type, status, json.dumps(payload))
         )
-        self.conn.commit()
+
 
     def get_livestock_observations(self, paddock_id: str = None, limit: int = 5):
         cursor = self.conn.cursor()
@@ -302,7 +299,7 @@ class GraphStorage:
         cursor.execute(query, params)
         return [json.loads(row[0]) for row in cursor.fetchall()]
 
-    def update_node_registry(self, node_id: str, status: str = None, role: str = None, farm_id: str = None, field_id: str = None, zone_id: str = None, paddock_id: str = None, asset_id: str = None, first_seen: str = None, last_seen: str = None, capabilities: dict = None, config: dict = None, payload: dict = None):
+    def update_node_registry(self, node_id: str, status: str = None, role: str = None, farm_id: str = None, field_id: str = None, zone_id: str = None, paddock_id: str = None, asset_id: str = None, first_seen: str = None, last_seen: str = None, last_sequence: int = None, capabilities: dict = None, config: dict = None, payload: dict = None, commit: bool = True):
         cursor = self.conn.cursor()
         
         # Build dynamic update
@@ -317,6 +314,7 @@ class GraphStorage:
         if asset_id: updates.append("asset_id = ?"); params.append(asset_id)
         if first_seen: updates.append("first_seen = ?"); params.append(first_seen)
         if last_seen: updates.append("last_seen = ?"); params.append(last_seen)
+        if last_sequence is not None: updates.append("last_sequence = ?"); params.append(last_sequence)
         if capabilities: updates.append("capabilities_json = ?"); params.append(json.dumps(capabilities))
         if config: updates.append("config_json = ?"); params.append(json.dumps(config))
         if payload: updates.append("payload_json = ?"); params.append(json.dumps(payload))
@@ -327,15 +325,15 @@ class GraphStorage:
         cursor.execute("SELECT id FROM node_registry WHERE id = ?", (node_id,))
         if not cursor.fetchone():
             # Initial Insert
-            cols = ["id", "status", "role_template", "farm_id", "field_id", "zone_id", "paddock_id", "asset_id", "first_seen", "last_seen", "capabilities_json", "config_json", "payload_json"]
-            vals = [node_id, status or 'pending', role, farm_id, field_id, zone_id, paddock_id, asset_id, first_seen, last_seen, json.dumps(capabilities or {}), json.dumps(config or {}), json.dumps(payload or {})]
+            cols = ["id", "status", "role_template", "farm_id", "field_id", "zone_id", "paddock_id", "asset_id", "first_seen", "last_seen", "last_sequence", "capabilities_json", "config_json", "payload_json"]
+            vals = [node_id, status or 'pending', role, farm_id, field_id, zone_id, paddock_id, asset_id, first_seen, last_seen, last_sequence, json.dumps(capabilities or {}), json.dumps(config or {}), json.dumps(payload or {})]
             placeholders = ",".join(["?" for _ in vals])
             cursor.execute(f"INSERT INTO node_registry ({','.join(cols)}) VALUES ({placeholders})", vals)
         else:
             params.append(node_id)
             cursor.execute(f"UPDATE node_registry SET {', '.join(updates)} WHERE id = ?", params)
         
-        self.conn.commit()
+
 
     def get_node_registry(self, node_id: str):
         cursor = self.conn.cursor()
@@ -362,13 +360,13 @@ class GraphStorage:
             results.append(res)
         return results
 
-    def update_card_action(self, card_id: str, action_status: str, notes: str, updated_at: str):
+    def update_card_action(self, card_id: str, action_status: str, notes: str, updated_at: str, commit: bool = True):
         cursor = self.conn.cursor()
         cursor.execute(
             "UPDATE cards SET action_status = ?, notes = ?, updated_at = ? WHERE id = ?",
             (action_status, notes, updated_at, card_id)
         )
-        self.conn.commit()
+
         
     def get_node(self, node_id: str):
         cursor = self.conn.cursor()
