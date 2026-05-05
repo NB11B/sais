@@ -1,0 +1,53 @@
+{
+  "node_id": "perimeter-node-001",
+  "node_type": "gps_environment_node",
+  "firmware_version": "0.1.0",
+  "hardware_profile": "esp32_s3_gps_sht31",
+
+  "farm": {
+    "farm_id": "local",
+    "field_id": "field-a",
+    "zone_id": "zone-a1"
+  },
+
+  "wifi": {
+    "ssid": "YOUR_WIFI_SSID",
+    "password": "YOUR_WIFI_PASSWORD"
+  },
+
+  "telemetry": {
+    "host": "192.168.1.10",
+    "port": 8000,
+    "path": "/api/observations",
+    "publish_interval_ms": 5000
+  },
+
+  "gps": {
+    "uart_rx_pin": 16,
+    "uart_tx_pin": 17,
+    "baud_rate": 9600,
+    "minimum_satellites": 4,
+    "max_fix_age_ms": 10000,
+    "max_hdop": 3.5
+  },
+
+  "environment": {
+    "sensor_type": "SHT31",
+    "i2c_sda_pin": 8,
+    "i2c_scl_pin": 9,
+    "read_interval_ms": 2000
+  },
+
+  "health": {
+    "battery_monitor_enabled": false,
+    "battery_adc_pin": 4,
+    "battery_scale_factor": 2.0,
+    "low_battery_voltage": 3.5,
+    "wifi_reconnect_interval_ms": 10000
+  },
+
+  "logging": {
+    "serial_enabled": true,
+    "log_level": "info"
+  }
+}

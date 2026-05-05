@@ -1,12 +1,52 @@
-# SAIS Hardware — Enclosure, PCB, and BOM
+# SAIS Hardware
 
-This directory contains all hardware design files for the Sovereign Node physical assembly.
+This directory contains the hardware development layer for SAIS field nodes, sensor packages, enclosure work, PCB planning, wiring references, and repeatable bring-up procedures.
 
-## Contents (Active Framework)
+SAIS hardware should be understandable by a new developer, teachable to a field operator, repeatable on a bench, and visible through the established dashboard telemetry path.
+
+The hardware section is not a separate repository and is not a second architecture. It is the practical hardware layer inside the existing SAIS repo.
+
+## Hardware Development Goal
+
+Every hardware module should answer four questions:
+
+```text
+1. What does this hardware do?
+2. How is it wired?
+3. How does firmware talk to it?
+4. What telemetry does it publish into SAIS?
+```
+
+The preferred development pattern is:
+
+```text
+sense
+validate
+package
+publish
+observe in dashboard
+```
+
+## Current Hardware Focus
+
+The first simple teachable node is:
+
+```text
+modules/gps_perimeter_node/
+```
+
+This node reports GPS position, temperature, humidity, and node health into the SAIS telemetry model. It is intentionally low risk because it observes and reports. It does not actuate relays, pumps, valves, gates, or power routing hardware.
+
+## Directory Structure
 
 The repository follows a strict organizational structure to support concurrent hardware development:
 
-- [**`enclosure/`**](enclosure/README.md): Mechanical drawings (STEP, DXF) and thermal specs.
+- [**`HARDWARE_DEVELOPMENT_STANDARD.md`**](HARDWARE_DEVELOPMENT_STANDARD.md): The master standard for hardware modules.
+- [**`HARDWARE_MODULE_TEMPLATE.md`**](HARDWARE_MODULE_TEMPLATE.md): Template for new hardware modules.
+- [**`TELEMETRY_FIELD_MAP.md`**](TELEMETRY_FIELD_MAP.md): Canonical map of hardware sensors to SAIS telemetry fields.
+- [**`modules/`**](modules/gps_perimeter_node/README.md): Reference and production hardware modules.
+- [**`examples/`**](examples/gps_perimeter_node_minimal/README.md): Minimal scaffolds and configuration examples.
+- [**`enclosure/`**](enclosure/README.md): Mechanical drawings (STEP, DXF) and IP67 specs.
 - [**`pcb/`**](pcb/README.md): PCB schematics and layouts (KiCad).
   - `controller/`: Main SBC/MCU carrier.
   - `power/`: MPPT and power management.
@@ -14,25 +54,59 @@ The repository follows a strict organizational structure to support concurrent h
 - [**`bom/`**](bom/master_bom_template.csv): Master Bill of Materials and cost tracking.
 - `datasheets/`: Curated collection of component specifications.
 
+## Hardware Module Rule
+
+A hardware module is not complete when it works once. It is complete when it can be explained, wired, tested, faulted, and observed.
+
+Each module should include:
+
+```text
+README.md
+module_contract.md
+wiring.md
+telemetry.md
+test_plan.md
+fault_handling.md
+firmware_notes.md
+```
+
+## Dashboard Telemetry Rule
+
+Every hardware module must identify the SAIS telemetry fields it produces.
+
+For live observations that fit the current API, field nodes should publish to:
+
+```text
+POST /api/observations
+```
+
+For richer node health, GPS fix quality, firmware status, battery health, and transport status, the module should document the intended dashboard telemetry object even if the endpoint is still planned.
+
 ## Design Tools
 
-- **PCB Design:** KiCad 7.x (open-source)
-- **Mechanical Design:** FreeCAD (open-source) or equivalent
-- **BOM Management:** KiCad BOM export + interactive HTML BOM plugin
+- PCB design: KiCad 7.x or newer
+- Mechanical design: FreeCAD or equivalent
+- BOM management: KiCad BOM export plus interactive HTML BOM plugin
+- Firmware targets: ESP32, ESP32-S3, Arduino UNO Q, STM32-class controllers, and future Linux edge nodes
 
 ## Design Principles
 
-- All PCB designs use **through-hole or industrial-grade SMD components** rated for −40°C to +85°C.
-- All external connectors are **M12 circular, IP67-rated**.
-- The PCB layout must allow the die-cast enclosure to serve as the primary heat sink for the i.MX 8M SBC. Thermal interface material (TIM) pads are specified in the mechanical drawings.
-- No SD card slots. Storage is exclusively eMMC, soldered directly to the SBC.
+- Field-first: hardware exists to answer operational farm and ranch questions.
+- Offline-first: hardware must remain useful without cloud dependency.
+- Explainable: every module must be teachable from its own documents.
+- Repeatable: bring-up and tests must be runnable by another developer.
+- Visible: faults and readings should appear in logs and dashboard telemetry.
+- Safe by default: failed sensors should produce visible faults, not silent behavior.
+- Configurable: node identity, pins, thresholds, and publish intervals should not be hidden in unexplained code.
 
 ## Contributing
 
-Hardware contributions (enclosure improvements, PCB revisions, alternative SBC carrier boards) are welcome. Please follow the KiCad design rules defined in `pcb/design_rules.kicad_dru` and include updated BOM files with any PCB changes.
+Hardware contributions are welcome across sensor modules, enclosure improvements, PCB revisions, field wiring, firmware examples, and test procedures.
+
+New hardware modules should follow [`HARDWARE_MODULE_TEMPLATE.md`](HARDWARE_MODULE_TEMPLATE.md) and the standard in [`HARDWARE_DEVELOPMENT_STANDARD.md`](HARDWARE_DEVELOPMENT_STANDARD.md).
 
 See the root [`CONTRIBUTING.md`](../CONTRIBUTING.md) for general contribution guidelines.
 
 ---
 
-*Nathanael J. Bocker, 2026 all rights reserved*
+Copyright © 2026 Nathanael J. Bocker. Licensed under AGPL-3.0.
