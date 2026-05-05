@@ -1,19 +1,30 @@
 """
-SAIS n-signal diagnostic engine.
+SAIS n-signal diagnostic and attention engine.
 
 This module is the executable foundation for the SAIS methodology claim:
-any sufficiently meaningful combination of field signals should be interpreted
-as farm-section condition evidence, not displayed only as isolated sensor charts.
+field signals should be interpreted as condition evidence, not displayed only as
+isolated sensor charts.
 
-The engine is intentionally rule-based, transparent, and operator-facing.
-It does not prescribe irreversible actions. It ranks interpretations, reports
-supporting evidence, reports missing signals, assigns confidence, and returns
-inspection-oriented meaning.
+The engine has two complementary layers:
+
+1. Attention aggregates
+   Curated combinations of signals that direct operator attention to a section
+   of the farm before the system makes a strong diagnostic claim.
+
+2. Hypothesis-driven diagnostics
+   Ranked interpretations that explain what a symptom or signal pattern most
+   likely means, with supporting evidence, missing signals, confidence, and a
+   suggested inspection.
+
+The design is intentionally rule-based, transparent, and operator-facing.
+It does not prescribe irreversible actions. It explains why a section deserves
+attention and what evidence supports each interpretation.
 
 Core chain:
 
-    signals -> section context -> candidate interpretations -> evidence score
-            -> ranked meanings -> confidence -> suggested inspection
+    signals -> section context -> attention aggregates -> candidate meanings
+            -> evidence score -> ranked interpretations -> confidence
+            -> suggested inspection
 """
 
 from __future__ import annotations
@@ -25,6 +36,10 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .graph import FarmGraph
 
+
+# ---------------------------------------------------------------------------
+# Data models
+# ---------------------------------------------------------------------------
 
 @dataclass
 class FarmSignal:
@@ -42,11 +57,46 @@ class FarmSignal:
 
 @dataclass
 class SignalRequirement:
-    """Defines a signal that improves confidence for a diagnostic interpretation."""
+    """Defines a signal that improves confidence for an interpretation."""
 
     domain: str
     name_contains: Sequence[str]
     required: bool = False
+
+
+@dataclass
+class AttentionAggregateRule:
+    """
+    A curated multi-signal combination that directs attention.
+
+    Attention aggregates are not final diagnoses. They are the farm equivalent
+    of abnormal vital-sign clusters: combinations worth looking at because they
+    may reveal a condition affecting soil, water, plants, animals, infrastructure,
+    or source trust.
+    """
+
+    aggregate_id: str
+    domain: str
+    title: str
+    description: str
+    section_scope: Sequence[str]
+    evidence_terms: Sequence[str]
+    minimum_score: float
+    suggested_focus: str
+
+
+@dataclass
+class AttentionAggregate:
+    """One attention-directing signal combination detected for a section."""
+
+    aggregate_id: str
+    domain: str
+    title: str
+    score: float
+    priority: str
+    description: str
+    supporting_evidence: List[str]
+    suggested_focus: str
 
 
 @dataclass
@@ -80,13 +130,14 @@ class RankedInterpretation:
 
 @dataclass
 class DiagnosticReport:
-    """Diagnostic result for one farm section."""
+    """Diagnostic and attention result for one farm section."""
 
     farm_id: str
     section: Dict[str, Optional[str]]
     signal_count: int
     status: str
     confidence: str
+    attention_aggregates: List[AttentionAggregate]
     ranked_interpretations: List[RankedInterpretation]
     signals_used: List[FarmSignal]
     missing_signals: List[str]
@@ -98,18 +149,30 @@ class DiagnosticReport:
             "signal_count": self.signal_count,
             "status": self.status,
             "confidence": self.confidence,
+            "attention_aggregates": [asdict(item) for item in self.attention_aggregates],
             "ranked_interpretations": [asdict(item) for item in self.ranked_interpretations],
             "signals_used": [asdict(item) for item in self.signals_used],
             "missing_signals": self.missing_signals,
         }
 
 
+# ---------------------------------------------------------------------------
+# Engine
+# ---------------------------------------------------------------------------
+
 class FarmDiagnosticEngine:
-    """General n-signal diagnostic engine for SAIS farm sections."""
+    """
+    General n-signal attention and diagnostic engine for SAIS farm sections.
+
+    Use `diagnose_section` for the normal cross-board workflow. It gathers any
+    available combination of signals for the section, emits attention aggregates,
+    then ranks possible interpretations.
+    """
 
     def __init__(self, graph: FarmGraph):
         self.graph = graph
         self.rules = self.default_rules()
+        self.attention_rules = self.default_attention_aggregate_rules()
 
     # ------------------------------------------------------------------
     # Public API
@@ -130,7 +193,7 @@ class FarmDiagnosticEngine:
 
         This is the cross-board function: water, soil, weather, plant, grazing,
         livestock, infrastructure, and source-health signals are normalized into
-        one evidence set, then interpreted against transparent rules.
+        one evidence set.
         """
 
         signals = self.collect_section_signals(
@@ -149,6 +212,8 @@ class FarmDiagnosticEngine:
             "asset_id": asset_id,
         }
 
+        attention = self.compute_attention_aggregates(signals, section)
+
         if len(signals) < minimum_signals:
             return DiagnosticReport(
                 farm_id=farm_id,
@@ -156,6 +221,7 @@ class FarmDiagnosticEngine:
                 signal_count=len(signals),
                 status="insufficient_signals",
                 confidence="low",
+                attention_aggregates=attention,
                 ranked_interpretations=[],
                 signals_used=signals,
                 missing_signals=[
@@ -164,8 +230,8 @@ class FarmDiagnosticEngine:
             )
 
         ranked = self.interpret_signals(signals, section)
-        top_confidence = ranked[0].confidence if ranked else "unknown"
-        status = self.status_from_ranked(ranked)
+        top_confidence = ranked[0].confidence if ranked else (attention[0].priority if attention else "unknown")
+        status = self.status_from_attention_and_ranked(attention, ranked)
         missing = sorted({m for item in ranked[:3] for m in item.missing_signals})
 
         return DiagnosticReport(
@@ -174,6 +240,7 @@ class FarmDiagnosticEngine:
             signal_count=len(signals),
             status=status,
             confidence=top_confidence,
+            attention_aggregates=attention,
             ranked_interpretations=ranked,
             signals_used=signals,
             missing_signals=missing,
@@ -199,9 +266,138 @@ class FarmDiagnosticEngine:
             item for item in report.ranked_interpretations
             if item.symptom in {"low_soil_moisture", "poor_water_retention", "source_fault"}
         ]
-        report.status = self.status_from_ranked(report.ranked_interpretations)
-        report.confidence = report.ranked_interpretations[0].confidence if report.ranked_interpretations else "low"
+        report.attention_aggregates = [
+            item for item in report.attention_aggregates
+            if item.domain in {"soil_water", "soil_plant_animal", "source_health"}
+        ]
+        report.status = self.status_from_attention_and_ranked(
+            report.attention_aggregates,
+            report.ranked_interpretations,
+        )
+        report.confidence = self.top_confidence(report.attention_aggregates, report.ranked_interpretations)
         return report
+
+    # ------------------------------------------------------------------
+    # Attention aggregates
+    # ------------------------------------------------------------------
+
+    def compute_attention_aggregates(
+        self,
+        signals: Sequence[FarmSignal],
+        section: Dict[str, Optional[str]],
+    ) -> List[AttentionAggregate]:
+        """
+        Return curated multi-signal combinations that deserve attention.
+
+        These aggregates are intentionally not unconstrained combinations.
+        They are named, reviewed combinations that encode agronomic meaning.
+        This avoids combinatorial noise while still letting any available set of
+        signals contribute to the operating picture.
+        """
+
+        aggregates: List[AttentionAggregate] = []
+        for rule in self.attention_rules:
+            if not self.rule_applies_to_section_scope(rule.section_scope, section):
+                continue
+
+            score = 0.0
+            evidence: List[str] = []
+            for term in rule.evidence_terms:
+                term_score, term_evidence = self.evaluate_term(term, signals)
+                score += term_score
+                evidence.extend(term_evidence)
+
+            score = max(0.0, min(1.0, score))
+            if score >= rule.minimum_score:
+                aggregates.append(
+                    AttentionAggregate(
+                        aggregate_id=rule.aggregate_id,
+                        domain=rule.domain,
+                        title=rule.title,
+                        score=round(score, 3),
+                        priority=self.priority_from_score(score),
+                        description=rule.description,
+                        supporting_evidence=evidence,
+                        suggested_focus=rule.suggested_focus,
+                    )
+                )
+
+        aggregates.sort(key=lambda item: item.score, reverse=True)
+        return aggregates[:8]
+
+    def default_attention_aggregate_rules(self) -> List[AttentionAggregateRule]:
+        return [
+            AttentionAggregateRule(
+                aggregate_id="attention_water_capture_gap",
+                domain="soil_water",
+                title="Water capture gap",
+                description="Water input appears present, but the soil-water signal suggests weak capture or retention.",
+                section_scope=["field", "zone", "paddock"],
+                evidence_terms=["low_soil_moisture", "recent_rainfall", "runoff_context"],
+                minimum_score=0.42,
+                suggested_focus="Inspect infiltration, cover, crusting, compaction, and runoff pathways.",
+            ),
+            AttentionAggregateRule(
+                aggregate_id="attention_atmospheric_drydown_pressure",
+                domain="weather_soil",
+                title="Atmospheric drydown pressure",
+                description="Weather signals suggest the section may be losing water through heat, humidity deficit, or wind-driven drydown.",
+                section_scope=["field", "zone", "paddock"],
+                evidence_terms=["low_soil_moisture", "high_drydown_weather"],
+                minimum_score=0.32,
+                suggested_focus="Check plant stress, shade, water availability, and grazing timing.",
+            ),
+            AttentionAggregateRule(
+                aggregate_id="attention_grazing_recovery_pressure",
+                domain="soil_plant_animal",
+                title="Grazing recovery pressure",
+                description="Plant recovery, cover, soil moisture, and grazing signals suggest recovery may be under pressure.",
+                section_scope=["paddock"],
+                evidence_terms=["low_soil_moisture", "low_cover_or_recovery", "recent_grazing_pressure"],
+                minimum_score=0.42,
+                suggested_focus="Inspect residual cover, grazing duration, rest interval, and recovery before re-entry.",
+            ),
+            AttentionAggregateRule(
+                aggregate_id="attention_productive_uptake_watch",
+                domain="soil_plant",
+                title="Productive uptake watch",
+                description="Low soil moisture coincides with strong plant response, suggesting water may be moving through productive growth rather than immediate failure.",
+                section_scope=["zone", "paddock"],
+                evidence_terms=["low_soil_moisture", "strong_plant_response"],
+                minimum_score=0.38,
+                suggested_focus="Verify plant vigor and avoid overcorrecting unless stress indicators appear.",
+            ),
+            AttentionAggregateRule(
+                aggregate_id="attention_soil_function_watch",
+                domain="soil_function",
+                title="Soil function watch",
+                description="Infiltration or soil-function signals suggest reduced water entry or biological function.",
+                section_scope=["paddock"],
+                evidence_terms=["low_infiltration", "low_cover_or_recovery"],
+                minimum_score=0.30,
+                suggested_focus="Inspect aggregation, compaction, cover, residue, biological activity, and infiltration.",
+            ),
+            AttentionAggregateRule(
+                aggregate_id="attention_water_asset_risk",
+                domain="water_infrastructure",
+                title="Water asset risk",
+                description="Water level, pump, pressure, or source-health signals suggest a water asset may need inspection.",
+                section_scope=["asset", "farm"],
+                evidence_terms=["water_asset_low", "pump_or_pressure_fault", "source_stale_or_faulty"],
+                minimum_score=0.30,
+                suggested_focus="Check tank level, pump power/current, pressure, leaks, telemetry freshness, and animal access.",
+            ),
+            AttentionAggregateRule(
+                aggregate_id="attention_source_trust_gap",
+                domain="source_health",
+                title="Source trust gap",
+                description="Telemetry freshness, battery, or node-health signals suggest the data source may be less trustworthy.",
+                section_scope=["field", "zone", "paddock", "asset", "farm"],
+                evidence_terms=["source_stale_or_faulty"],
+                minimum_score=0.20,
+                suggested_focus="Check node battery, connectivity, last-seen time, sensor placement, and calibration.",
+            ),
+        ]
 
     # ------------------------------------------------------------------
     # Signal collection
@@ -433,7 +629,7 @@ class FarmDiagnosticEngine:
     def interpret_signals(self, signals: Sequence[FarmSignal], section: Dict[str, Optional[str]]) -> List[RankedInterpretation]:
         ranked: List[RankedInterpretation] = []
         for rule in self.rules:
-            if not self.rule_applies_to_section(rule, section):
+            if not self.rule_applies_to_section_scope(rule.section_scope, section):
                 continue
             score, supporting, missing = self.score_rule(rule, signals)
             if score <= 0:
@@ -463,7 +659,7 @@ class FarmDiagnosticEngine:
             matched = self.find_matching_signals(signals, req)
             label = f"{req.domain}:{'/'.join(req.name_contains)}"
             if matched:
-                score += 0.15 * len(matched)
+                score += 0.15 * min(2, len(matched))
                 for signal in matched[:3]:
                     supporting.append(f"{signal.name}={signal.value}{(' ' + signal.unit) if signal.unit else ''}")
             elif req.required:
@@ -593,7 +789,7 @@ class FarmDiagnosticEngine:
         return 0.0, []
 
     # ------------------------------------------------------------------
-    # Default rules
+    # Default interpretation rules
     # ------------------------------------------------------------------
 
     def default_rules(self) -> List[InterpretationRule]:
@@ -658,7 +854,7 @@ class FarmDiagnosticEngine:
             InterpretationRule(
                 interpretation_id="source_sensor_fault_possible",
                 domain="source_health",
-                section_scope=["field", "zone", "paddock", "asset"],
+                section_scope=["field", "zone", "paddock", "asset", "farm"],
                 symptom="source_fault",
                 description="The signal pattern may be explained by stale telemetry, low battery, or node/source failure.",
                 requirements=[
@@ -689,18 +885,18 @@ class FarmDiagnosticEngine:
     # Utility helpers
     # ------------------------------------------------------------------
 
-    def rule_applies_to_section(self, rule: InterpretationRule, section: Dict[str, Optional[str]]) -> bool:
-        if "farm" in rule.section_scope:
+    def rule_applies_to_section_scope(self, section_scope: Sequence[str], section: Dict[str, Optional[str]]) -> bool:
+        if "farm" in section_scope:
             return True
-        if section.get("asset_id") and "asset" in rule.section_scope:
+        if section.get("asset_id") and "asset" in section_scope:
             return True
-        if section.get("paddock_id") and "paddock" in rule.section_scope:
+        if section.get("paddock_id") and "paddock" in section_scope:
             return True
-        if section.get("zone_id") and "zone" in rule.section_scope:
+        if section.get("zone_id") and "zone" in section_scope:
             return True
-        if section.get("field_id") and "field" in rule.section_scope:
+        if section.get("field_id") and "field" in section_scope:
             return True
-        return not any(section.values()) and "farm" in rule.section_scope
+        return not any(section.values()) and "farm" in section_scope
 
     def find_matching_signals(self, signals: Sequence[FarmSignal], req: SignalRequirement) -> List[FarmSignal]:
         return [
@@ -735,15 +931,44 @@ class FarmDiagnosticEngine:
             return "low"
         return "unknown"
 
-    def status_from_ranked(self, ranked: Sequence[RankedInterpretation]) -> str:
-        if not ranked:
-            return "insufficient_data"
-        top = ranked[0]
-        if top.confidence == "high" and top.score >= 0.75:
+    def priority_from_score(self, score: float) -> str:
+        if score >= 0.75:
+            return "high"
+        if score >= 0.45:
+            return "medium"
+        return "low"
+
+    def status_from_attention_and_ranked(
+        self,
+        attention: Sequence[AttentionAggregate],
+        ranked: Sequence[RankedInterpretation],
+    ) -> str:
+        top_score = 0.0
+        if attention:
+            top_score = max(top_score, attention[0].score)
+        if ranked:
+            top_score = max(top_score, ranked[0].score)
+
+        if top_score >= 0.75:
             return "action"
-        if top.score >= 0.45:
+        if top_score >= 0.45:
             return "watch"
-        return "ok_with_warning"
+        if top_score > 0:
+            return "ok_with_warning"
+        return "insufficient_data"
+
+    def top_confidence(
+        self,
+        attention: Sequence[AttentionAggregate],
+        ranked: Sequence[RankedInterpretation],
+    ) -> str:
+        scored: List[Tuple[float, str]] = []
+        scored.extend((item.score, item.priority) for item in attention)
+        scored.extend((item.score, item.confidence) for item in ranked)
+        if not scored:
+            return "low"
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return scored[0][1]
 
     def domain_from_measurement(self, layer: Optional[str], measurement_id: Optional[str]) -> str:
         text = f"{layer or ''} {measurement_id or ''}".lower()
