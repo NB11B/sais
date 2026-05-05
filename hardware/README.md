@@ -2,18 +2,17 @@
 
 This directory contains all hardware design files for the Sovereign Node physical assembly.
 
-## Contents (Planned)
+## Contents (Active Framework)
 
-```
-hardware/
-├── enclosure/          # IP67 die-cast enclosure mechanical drawings (STEP, DXF)
-├── pcb/                # PCB schematics and layouts (KiCad)
-│   ├── controller/     # ESP32-S3 carrier board
-│   ├── power/          # Power management and MPPT interface board
-│   └── io/             # Industrial I/O breakout board (M12 connectors, 4-20mA, RS-485)
-├── bom/                # Bill of Materials (CSV, interactive HTML BOM)
-└── datasheets/         # Key component datasheets
-```
+The repository follows a strict organizational structure to support concurrent hardware development:
+
+- [**`enclosure/`**](enclosure/README.md): Mechanical drawings (STEP, DXF) and thermal specs.
+- [**`pcb/`**](pcb/README.md): PCB schematics and layouts (KiCad).
+  - `controller/`: Main SBC/MCU carrier.
+  - `power/`: MPPT and power management.
+  - `io/`: Industrial interface breakout.
+- [**`bom/`**](bom/master_bom_template.csv): Master Bill of Materials and cost tracking.
+- `datasheets/`: Curated collection of component specifications.
 
 ## Design Tools
 

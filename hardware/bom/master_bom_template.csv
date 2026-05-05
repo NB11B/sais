@@ -1,0 +1,4 @@
+Reference,Quantity,Value,Footprint,Manufacturer,MPN,Description,Vendor,Vendor PN,Estimated Cost
+U1,1,ESP32-S3-WROOM-1,LCC-84,Espressif,ESP32-S3-WROOM-1-N16R8,MCU Module,DigiKey,1965-ESP32-S3-WROOM-1-N16R8-ND,4.50
+J1,1,M12-5P-MALE,M12-5,Phoenix Contact,1436440,M12 Power Connector,Mouser,651-1436440,8.20
+C1,5,10uF,0603,Samsung,CL10A106MQ8NNNC,Capacitor X5R 6.3V,LCSC,C19702,0.02
