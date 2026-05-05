@@ -7,14 +7,14 @@ class FarmGraph:
     def __init__(self, db_path=":memory:"):
         self.storage = GraphStorage(db_path)
 
-    def add_node(self, node: GraphEntity, commit: bool = True):
+    def add_node(self, node: GraphEntity):
         payload = asdict(node)
         node_type = type(node).__name__
-        self.storage.add_node(node.id, node_type, payload, commit=commit)
+        self.storage.add_node(node.id, node_type, payload)
 
-    def add_edge(self, source_id: str, edge_type: str, target_id: str, payload: dict = None, commit: bool = True):
+    def add_edge(self, source_id: str, edge_type: str, target_id: str, payload: dict = None):
         edge_id = f"{source_id}-{edge_type}-{target_id}"
-        self.storage.add_edge(edge_id, source_id, edge_type, target_id, payload, commit=commit)
+        self.storage.add_edge(edge_id, source_id, edge_type, target_id, payload)
         
     def get_node(self, node_id: str) -> Optional[dict]:
         return self.storage.get_node(node_id)
