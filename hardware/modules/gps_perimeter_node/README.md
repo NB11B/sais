@@ -83,7 +83,7 @@ GPS UART stream
 README.md             Plain-language module explanation
 module_contract.md    Inputs, outputs, dependencies, failure modes, telemetry
 wiring.md             Suggested wiring and pin map
-temetry.md            Telemetry field mapping and example payloads
+telemetry.md          Telemetry field mapping and example payloads
 test_plan.md          Repeatable test procedure
 fault_handling.md     Visible fault behavior
 firmware_notes.md     Firmware loop and implementation notes
