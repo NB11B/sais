@@ -4,20 +4,29 @@ from contextlib import contextmanager
 
 class GraphStorage:
     def __init__(self, db_path=":memory:"):
-        self.conn = sqlite3.connect(db_path, isolation_level=None)
+        self.db_path = db_path
+        self.conn = sqlite3.connect(db_path, isolation_level=None, check_same_thread=False)
+        self._txn_depth = 0
         self._init_db()
         self._migrate_db()
 
     @contextmanager
     def transaction(self):
-        """Explicit transaction context manager for atomic multi-statement operations."""
+        """Explicit transaction context manager for atomic multi-statement operations. Supports nesting."""
+        depth = self._txn_depth
+        self._txn_depth += 1
         try:
-            self.conn.execute("BEGIN")
+            if depth == 0:
+                self.conn.execute("BEGIN")
             yield
-            self.conn.execute("COMMIT")
+            if depth == 0:
+                self.conn.execute("COMMIT")
         except Exception:
-            self.conn.execute("ROLLBACK")
+            if depth == 0:
+                self.conn.execute("ROLLBACK")
             raise
+        finally:
+            self._txn_depth -= 1
 
     def _init_db(self):
         cursor = self.conn.cursor()
@@ -195,64 +204,68 @@ class GraphStorage:
             cursor.execute("ALTER TABLE node_registry ADD COLUMN last_sequence INTEGER DEFAULT 0")
 
     def add_node(self, node_id: str, node_type: str, payload: dict):
-        cursor = self.conn.cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO nodes (id, type, payload_json) VALUES (?, ?, ?)",
-            (node_id, node_type, json.dumps(payload))
-        )
+        with self.transaction():
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO nodes (id, type, payload_json) VALUES (?, ?, ?)",
+                (node_id, node_type, json.dumps(payload))
+            )
 
     def add_edge(self, edge_id: str, source_id: str, edge_type: str, target_id: str, payload: dict = None):
-        cursor = self.conn.cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO edges (id, source_id, type, target_id, payload_json) VALUES (?, ?, ?, ?, ?)",
-            (edge_id, source_id, edge_type, target_id, json.dumps(payload or {}))
-        )
+        with self.transaction():
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO edges (id, source_id, type, target_id, payload_json) VALUES (?, ?, ?, ?, ?)",
+                (edge_id, source_id, edge_type, target_id, json.dumps(payload or {}))
+            )
 
 
     def add_observation(self, obs_id: str, node_id: str, timestamp: str, farm_id: str, field_id: str, zone_id: str, measurement_id: str, value: float, layer: str, payload: dict, sequence: int = None, payload_hash: str = None):
-        cursor = self.conn.cursor()
-        
-        # WP19: Check node status for trust/confidence
-        cursor.execute("SELECT status FROM node_registry WHERE id = ?", (node_id,))
-        row = cursor.fetchone()
-        node_status = row[0] if row else "pending"
-        payload["node_trust"] = node_status
-        if node_status != "accepted":
-            payload["confidence"] = "low"
+        with self.transaction():
+            cursor = self.conn.cursor()
             
-        # WP25.1: Strict INSERT for anti-replay (replaces INSERT OR REPLACE)
-        cursor.execute(
-            "INSERT INTO observations (id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, sequence, payload_hash, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (obs_id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, sequence, payload_hash, json.dumps(payload))
-        )
+            # WP19: Check node status for trust/confidence
+            cursor.execute("SELECT status FROM node_registry WHERE id = ?", (node_id,))
+            row = cursor.fetchone()
+            node_status = row[0] if row else "pending"
+            payload["node_trust"] = node_status
+            if node_status != "accepted":
+                payload["confidence"] = "low"
+                
+            # WP25.1: Strict INSERT for anti-replay (replaces INSERT OR REPLACE)
+            cursor.execute(
+                "INSERT INTO observations (id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, sequence, payload_hash, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (obs_id, node_id, timestamp, farm_id, field_id, zone_id, measurement_id, value, layer, sequence, payload_hash, json.dumps(payload))
+            )
 
 
     def add_quarantined_observation(self, obs_id: str, node_id: str, timestamp: str, farm_id: str, measurement_id: str, value: float, layer: str, payload: dict):
         """Stores observation in the main table with strict INSERT to ensure append-only forensics."""
-        cursor = self.conn.cursor()
-        payload["confidence"] = "quarantined"
-        cursor.execute(
-            "INSERT INTO observations (id, node_id, timestamp, farm_id, measurement_id, value, layer, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (obs_id, node_id, timestamp, farm_id, measurement_id, value, layer, json.dumps(payload))
-        )
+        with self.transaction():
+            cursor = self.conn.cursor()
+            payload["confidence"] = "quarantined"
+            cursor.execute(
+                "INSERT INTO observations (id, node_id, timestamp, farm_id, measurement_id, value, layer, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (obs_id, node_id, timestamp, farm_id, measurement_id, value, layer, json.dumps(payload))
+            )
 
 
     def add_card(self, card_id: str, created_at: str, card_type: str, status: str, payload: dict):
-        cursor = self.conn.cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO cards (id, created_at, card_type, status, payload_json) VALUES (?, ?, ?, ?, ?)",
-            (card_id, created_at, card_type, status, json.dumps(payload))
-        )
+        with self.transaction():
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO cards (id, created_at, card_type, status, payload_json) VALUES (?, ?, ?, ?, ?)",
+                (card_id, created_at, card_type, status, json.dumps(payload))
+            )
 
 
     def add_grazing_event(self, event_id: str, farm_id: str, field_id: str, paddock_id: str, started_at: str, ended_at: str, animal_count: int, notes: str, payload: dict):
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """INSERT OR REPLACE INTO grazing_events 
-               (id, farm_id, field_id, paddock_id, started_at, ended_at, animal_count, notes, payload_json) 
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (event_id, farm_id, field_id, paddock_id, started_at, ended_at, animal_count, notes, json.dumps(payload))
-        )
+        with self.transaction():
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "INSERT INTO grazing_events (id, farm_id, field_id, paddock_id, started_at, ended_at, animal_count, notes, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (event_id, farm_id, field_id, paddock_id, started_at, ended_at, animal_count, notes, json.dumps(payload))
+            )
 
 
     def get_latest_grazing_event(self, paddock_id: str):
@@ -312,38 +325,39 @@ class GraphStorage:
         return [json.loads(row[0]) for row in cursor.fetchall()]
 
     def update_node_registry(self, node_id: str, status: str = None, role: str = None, farm_id: str = None, field_id: str = None, zone_id: str = None, paddock_id: str = None, asset_id: str = None, first_seen: str = None, last_seen: str = None, last_sequence: int = None, capabilities: dict = None, config: dict = None, payload: dict = None):
-        cursor = self.conn.cursor()
-        
-        # Build dynamic update
-        updates = []
-        params = []
-        if status: updates.append("status = ?"); params.append(status)
-        if role: updates.append("role_template = ?"); params.append(role)
-        if farm_id: updates.append("farm_id = ?"); params.append(farm_id)
-        if field_id: updates.append("field_id = ?"); params.append(field_id)
-        if zone_id: updates.append("zone_id = ?"); params.append(zone_id)
-        if paddock_id: updates.append("paddock_id = ?"); params.append(paddock_id)
-        if asset_id: updates.append("asset_id = ?"); params.append(asset_id)
-        if first_seen: updates.append("first_seen = ?"); params.append(first_seen)
-        if last_seen: updates.append("last_seen = ?"); params.append(last_seen)
-        if last_sequence is not None: updates.append("last_sequence = ?"); params.append(last_sequence)
-        if capabilities: updates.append("capabilities_json = ?"); params.append(json.dumps(capabilities))
-        if config: updates.append("config_json = ?"); params.append(json.dumps(config))
-        if payload: updates.append("payload_json = ?"); params.append(json.dumps(payload))
-        
-        if not updates: return
-        
-        # Check if exists
-        cursor.execute("SELECT id FROM node_registry WHERE id = ?", (node_id,))
-        if not cursor.fetchone():
-            # Initial Insert
-            cols = ["id", "status", "role_template", "farm_id", "field_id", "zone_id", "paddock_id", "asset_id", "first_seen", "last_seen", "last_sequence", "capabilities_json", "config_json", "payload_json"]
-            vals = [node_id, status or 'pending', role, farm_id, field_id, zone_id, paddock_id, asset_id, first_seen, last_seen, last_sequence, json.dumps(capabilities or {}), json.dumps(config or {}), json.dumps(payload or {})]
-            placeholders = ",".join(["?" for _ in vals])
-            cursor.execute(f"INSERT INTO node_registry ({','.join(cols)}) VALUES ({placeholders})", vals)
-        else:
-            params.append(node_id)
-            cursor.execute(f"UPDATE node_registry SET {', '.join(updates)} WHERE id = ?", params)
+        with self.transaction():
+            cursor = self.conn.cursor()
+            
+            # Build dynamic update
+            updates = []
+            params = []
+            if status: updates.append("status = ?"); params.append(status)
+            if role: updates.append("role_template = ?"); params.append(role)
+            if farm_id: updates.append("farm_id = ?"); params.append(farm_id)
+            if field_id: updates.append("field_id = ?"); params.append(field_id)
+            if zone_id: updates.append("zone_id = ?"); params.append(zone_id)
+            if paddock_id: updates.append("paddock_id = ?"); params.append(paddock_id)
+            if asset_id: updates.append("asset_id = ?"); params.append(asset_id)
+            if first_seen: updates.append("first_seen = ?"); params.append(first_seen)
+            if last_seen: updates.append("last_seen = ?"); params.append(last_seen)
+            if last_sequence is not None: updates.append("last_sequence = ?"); params.append(last_sequence)
+            if capabilities: updates.append("capabilities_json = ?"); params.append(json.dumps(capabilities))
+            if config: updates.append("config_json = ?"); params.append(json.dumps(config))
+            if payload: updates.append("payload_json = ?"); params.append(json.dumps(payload))
+            
+            if not updates: return
+            
+            # Check if exists
+            cursor.execute("SELECT id FROM node_registry WHERE id = ?", (node_id,))
+            if not cursor.fetchone():
+                # Initial Insert
+                cols = ["id", "status", "role_template", "farm_id", "field_id", "zone_id", "paddock_id", "asset_id", "first_seen", "last_seen", "last_sequence", "capabilities_json", "config_json", "payload_json"]
+                vals = [node_id, status or 'pending', role, farm_id, field_id, zone_id, paddock_id, asset_id, first_seen, last_seen, last_sequence, json.dumps(capabilities or {}), json.dumps(config or {}), json.dumps(payload or {})]
+                placeholders = ",".join(["?" for _ in vals])
+                cursor.execute(f"INSERT INTO node_registry ({','.join(cols)}) VALUES ({placeholders})", vals)
+            else:
+                params.append(node_id)
+                cursor.execute(f"UPDATE node_registry SET {', '.join(updates)} WHERE id = ?", params)
         
 
 

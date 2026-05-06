@@ -172,19 +172,18 @@ async def health_check():
     return {"status": "healthy"}
 
 @app.post("/api/observations")
-async def post_observation(data: ObservationPayload, auth=Depends(require_node_auth)):
+async def post_observation(data: ObservationPayload, graph: FarmGraph = Depends(get_graph), auth=Depends(require_node_auth)):
     from farm_twin.ingest_observation import ingest_sensor_observation_payload
     from farm_twin.cards import generate_water_retention_card
     
     data = data.model_dump(by_alias=True)
-    graph = get_graph()
     
     try:
         # WP25: Check node acceptance status before full pipeline
         node_id = data.get("node_id")
         node_reg = graph.storage.get_node_registry(node_id) if node_id else None
         node_accepted = node_reg and node_reg.get("status") == "accepted" if node_reg else False
-        
+
         if not node_accepted:
             # Quarantine: store observation with reduced confidence, skip card generation
             data["confidence"] = "quarantined"

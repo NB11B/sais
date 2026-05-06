@@ -433,14 +433,24 @@ class FarmDiagnosticEngine:
         since: datetime,
     ) -> List[FarmSignal]:
         cursor = self.graph.storage.conn.cursor()
+        
+        # We want signals for this section OR farm-wide signals (where IDs are NULL)
         where = ["farm_id = ?", "timestamp > ?"]
         params: List[Any] = [farm_id, since.isoformat()]
+        
+        section_filters = []
         if field_id:
-            where.append("field_id = ?")
+            section_filters.append("field_id = ?")
             params.append(field_id)
         if zone_id:
-            where.append("zone_id = ?")
+            section_filters.append("zone_id = ?")
             params.append(zone_id)
+            
+        # Add a filter for farm-wide signals (NULL IDs)
+        # This is important for weather data which often doesn't have a zone
+        section_filters.append("(field_id IS NULL AND zone_id IS NULL)")
+        
+        where.append(f"({' OR '.join(section_filters)})")
 
         cursor.execute(
             f"""
