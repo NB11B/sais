@@ -123,6 +123,7 @@ class GraphStorage:
             CREATE TABLE IF NOT EXISTS node_registry (
                 id TEXT PRIMARY KEY,
                 status TEXT DEFAULT 'pending',
+                source_tier TEXT DEFAULT 'pending',
                 role_template TEXT,
                 farm_id TEXT,
                 field_id TEXT,
@@ -202,6 +203,11 @@ class GraphStorage:
         reg_cols = {row[1] for row in cursor.fetchall()}
         if "last_sequence" not in reg_cols:
             cursor.execute("ALTER TABLE node_registry ADD COLUMN last_sequence INTEGER DEFAULT 0")
+        
+        if "source_tier" not in reg_cols:
+            cursor.execute("ALTER TABLE node_registry ADD COLUMN source_tier TEXT DEFAULT 'pending'")
+            # Migrate existing accepted nodes to accepted tier
+            cursor.execute("UPDATE node_registry SET source_tier = 'accepted' WHERE status = 'accepted'")
 
     def add_node(self, node_id: str, node_type: str, payload: dict):
         with self.transaction():
@@ -324,7 +330,7 @@ class GraphStorage:
         cursor.execute(query, params)
         return [json.loads(row[0]) for row in cursor.fetchall()]
 
-    def update_node_registry(self, node_id: str, status: str = None, role: str = None, farm_id: str = None, field_id: str = None, zone_id: str = None, paddock_id: str = None, asset_id: str = None, first_seen: str = None, last_seen: str = None, last_sequence: int = None, capabilities: dict = None, config: dict = None, payload: dict = None):
+    def update_node_registry(self, node_id: str, status: str = None, source_tier: str = None, role: str = None, farm_id: str = None, field_id: str = None, zone_id: str = None, paddock_id: str = None, asset_id: str = None, first_seen: str = None, last_seen: str = None, last_sequence: int = None, capabilities: dict = None, config: dict = None, payload: dict = None):
         with self.transaction():
             cursor = self.conn.cursor()
             
@@ -332,6 +338,7 @@ class GraphStorage:
             updates = []
             params = []
             if status: updates.append("status = ?"); params.append(status)
+            if source_tier: updates.append("source_tier = ?"); params.append(source_tier)
             if role: updates.append("role_template = ?"); params.append(role)
             if farm_id: updates.append("farm_id = ?"); params.append(farm_id)
             if field_id: updates.append("field_id = ?"); params.append(field_id)
@@ -351,8 +358,8 @@ class GraphStorage:
             cursor.execute("SELECT id FROM node_registry WHERE id = ?", (node_id,))
             if not cursor.fetchone():
                 # Initial Insert
-                cols = ["id", "status", "role_template", "farm_id", "field_id", "zone_id", "paddock_id", "asset_id", "first_seen", "last_seen", "last_sequence", "capabilities_json", "config_json", "payload_json"]
-                vals = [node_id, status or 'pending', role, farm_id, field_id, zone_id, paddock_id, asset_id, first_seen, last_seen, last_sequence, json.dumps(capabilities or {}), json.dumps(config or {}), json.dumps(payload or {})]
+                cols = ["id", "status", "source_tier", "role_template", "farm_id", "field_id", "zone_id", "paddock_id", "asset_id", "first_seen", "last_seen", "last_sequence", "capabilities_json", "config_json", "payload_json"]
+                vals = [node_id, status or 'pending', source_tier or status or 'pending', role, farm_id, field_id, zone_id, paddock_id, asset_id, first_seen, last_seen, last_sequence, json.dumps(capabilities or {}), json.dumps(config or {}), json.dumps(payload or {})]
                 placeholders = ",".join(["?" for _ in vals])
                 cursor.execute(f"INSERT INTO node_registry ({','.join(cols)}) VALUES ({placeholders})", vals)
             else:

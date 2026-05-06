@@ -229,3 +229,101 @@ def test_e2e_water_capture_gap(engine):
 
     verify_graph.storage.conn.close()
     app.dependency_overrides.clear()
+
+def test_reference_weather_fuses_with_zone_soil(engine):
+    # This test proves that reference-tier weather data correctly fuses with
+    # zone-level soil observations, whereas pending/quarantined data would not.
+    from fastapi.testclient import TestClient
+    from software.dashboard.main import app, get_graph
+    
+    db_path = engine.graph.storage.db_path
+    app.dependency_overrides[get_graph] = lambda: FarmGraph(db_path)
+    client = TestClient(app)
+    
+    farm_id = "local"
+    weather_id = "reference-weather"
+    soil_id = "accepted-soil"
+    zone_id = "zone-A"
+    admin_token = "dev-admin-token"
+    
+    # 1. Register Weather as REFERENCE
+    setup_graph = FarmGraph(db_path)
+    setup_graph.storage.update_node_registry(weather_id, farm_id=farm_id, status="accepted", source_tier="reference")
+    
+    # 2. Register Soil as ACCEPTED
+    setup_graph.storage.update_node_registry(soil_id, farm_id=farm_id, status="accepted", source_tier="accepted", zone_id=zone_id)
+    
+    # 3. Add Context
+    setup_graph.add_edge(farm_id, "HAS_LAYER", "runoff_risk")
+    setup_graph.storage.conn.close()
+    
+    # 4. Submit Weather (Signal 1) - Should be accepted because source_tier is reference
+    client.post("/api/observations", json={
+        "schema": "sais.observation.v1",
+        "node_id": weather_id,
+        "farm_id": farm_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "measurement_id": "rainfall_mm",
+        "value": 15.0,
+        "layer": "Weather"
+    }, headers={"Authorization": f"Bearer {admin_token}"})
+    
+    # 5. Submit Temperature (Signal 2)
+    client.post("/api/observations", json={
+        "schema": "sais.observation.v1",
+        "node_id": weather_id,
+        "farm_id": farm_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "measurement_id": "air_temperature",
+        "value": 22.0,
+        "layer": "Weather"
+    }, headers={"Authorization": f"Bearer {admin_token}"})
+    
+    # 6. Submit Soil (Signal 3 - Trigger)
+    client.post("/api/observations", json={
+        "schema": "sais.observation.v1",
+        "node_id": soil_id,
+        "farm_id": farm_id,
+        "zone_id": zone_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "measurement_id": "soil.moisture.vwc",
+        "value": 0.10,
+        "layer": "SoilWater"
+    }, headers={"Authorization": f"Bearer {admin_token}"})
+    
+    # 7. Verify Fusion
+    verify_graph = FarmGraph(db_path)
+    cursor = verify_graph.storage.conn.cursor()
+    cursor.execute("SELECT payload_json FROM cards WHERE card_type = 'AttentionCard'")
+    cards = [json.loads(r[0]) for r in cursor.fetchall()]
+    
+    gap_card = next((c for c in cards if c.get("title") == "Water capture gap"), None)
+    assert gap_card is not None, "Reference weather failed to fuse with soil data"
+    
+    # 8. Negative Test: Register a PENDING node and verify it DOES NOT fuse
+    pending_id = "pending-node"
+    setup_graph = FarmGraph(db_path)
+    setup_graph.storage.update_node_registry(pending_id, farm_id=farm_id, status="pending", source_tier="pending")
+    setup_graph.storage.conn.close()
+    
+    client.post("/api/observations", json={
+        "schema": "sais.observation.v1",
+        "node_id": pending_id,
+        "farm_id": farm_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "measurement_id": "soil.moisture.vwc",
+        "value": 0.05,
+        "layer": "SoilWater"
+    }, headers={"Authorization": f"Bearer {admin_token}"})
+    
+    # Should NOT trigger new cards or be used in fusion
+    # (Actually it triggers the engine because it's farm_id matches, but the signals are filtered)
+    # So we check if any card mentions the pending node
+    cursor.execute("SELECT payload_json FROM cards")
+    all_cards = [json.loads(r[0]) for r in cursor.fetchall()]
+    for c in all_cards:
+        evidence = " ".join(c.get("evidence", []))
+        assert pending_id not in evidence, f"Pending node data was used in intelligence: {evidence}"
+
+    verify_graph.storage.conn.close()
+    app.dependency_overrides.clear()

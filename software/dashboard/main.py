@@ -182,7 +182,12 @@ async def post_observation(data: ObservationPayload, graph: FarmGraph = Depends(
         # WP25: Check node acceptance status before full pipeline
         node_id = data.get("node_id")
         node_reg = graph.storage.get_node_registry(node_id) if node_id else None
-        node_accepted = node_reg and node_reg.get("status") == "accepted" if node_reg else False
+        
+        # WP27.1: Multi-tier source trust gate
+        # "accepted" and "reference" tiers both trigger intelligence
+        INTELLIGENCE_TIERS = {"accepted", "reference"}
+        source_tier = node_reg.get("source_tier", "pending") if node_reg else "pending"
+        node_accepted = source_tier in INTELLIGENCE_TIERS
 
         if not node_accepted:
             # Quarantine: store observation with reduced confidence, skip card generation
@@ -191,7 +196,7 @@ async def post_observation(data: ObservationPayload, graph: FarmGraph = Depends(
         # Ingest the observation directly
         obs_id = ingest_sensor_observation_payload(graph, data)
         
-        # Only trigger intelligence pipeline for accepted nodes
+        # Only trigger intelligence pipeline for accepted/reference nodes
         if node_accepted:
             farm_id = data.get("farm_id")
             zone_id = data.get("zone_id")
@@ -285,7 +290,7 @@ async def admin_page(request: Request):
     return templates.TemplateResponse(request=request, name="admin.html", context={"request": request, "active_page": "admin"})
 
 from schemas import FarmPayload, FieldPayload, ZonePayload, PaddockPayload, SensorNodePayload, GrazingEventPayload, LivestockObservationPayload
-from schemas import InfrastructureAssetPayload, WaterAssetPayload, NodeHelloPayload, NodeAssignmentPayload
+from schemas import InfrastructureAssetPayload, WaterAssetPayload, NodeHelloPayload, NodeAssignmentPayload, NodeAcceptPayload
 from farm_twin.models import Farm, Field, ManagementZone, Paddock, SensorNode, GrazingEvent, LivestockObservation
 
 @app.get("/api/sources")
@@ -678,11 +683,12 @@ async def get_active_nodes(admin=Depends(require_admin)):
         graph.storage.conn.close()
 
 @app.post("/api/nodes/{node_id}/accept")
-async def accept_node(node_id: str, admin=Depends(require_admin)):
+async def accept_node(node_id: str, payload: NodeAcceptPayload = None, admin=Depends(require_admin)):
     graph = get_graph()
     try:
-        graph.storage.update_node_registry(node_id, status="accepted")
-        return {"status": "success", "node_id": node_id}
+        tier = payload.source_tier if payload else "accepted"
+        graph.storage.update_node_registry(node_id, status="accepted", source_tier=tier)
+        return {"status": "success", "node_id": node_id, "source_tier": tier}
     finally:
         graph.storage.conn.close()
 
@@ -690,7 +696,7 @@ async def accept_node(node_id: str, admin=Depends(require_admin)):
 async def reject_node(node_id: str, admin=Depends(require_admin)):
     graph = get_graph()
     try:
-        graph.storage.update_node_registry(node_id, status="rejected")
+        graph.storage.update_node_registry(node_id, status="rejected", source_tier="rejected")
         return {"status": "success", "node_id": node_id}
     finally:
         graph.storage.conn.close()

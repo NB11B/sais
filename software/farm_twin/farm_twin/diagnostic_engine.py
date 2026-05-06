@@ -51,6 +51,7 @@ class FarmSignal:
     unit: Optional[str] = None
     timestamp: Optional[str] = None
     source_id: Optional[str] = None
+    source_tier: str = "pending"
     confidence: str = "medium"
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -435,36 +436,41 @@ class FarmDiagnosticEngine:
         cursor = self.graph.storage.conn.cursor()
         
         # We want signals for this section OR farm-wide signals (where IDs are NULL)
-        where = ["farm_id = ?", "timestamp > ?"]
+        where = ["o.farm_id = ?", "o.timestamp > ?"]
         params: List[Any] = [farm_id, since.isoformat()]
         
         section_filters = []
         if field_id:
-            section_filters.append("field_id = ?")
+            section_filters.append("o.field_id = ?")
             params.append(field_id)
         if zone_id:
-            section_filters.append("zone_id = ?")
+            section_filters.append("o.zone_id = ?")
             params.append(zone_id)
             
         # Add a filter for farm-wide signals (NULL IDs)
         # This is important for weather data which often doesn't have a zone
-        section_filters.append("(field_id IS NULL AND zone_id IS NULL)")
+        section_filters.append("(o.field_id IS NULL AND o.zone_id IS NULL)")
         
         where.append(f"({' OR '.join(section_filters)})")
 
+        # Add trust tier filter
+        # We only want signals from accepted, reference, or external sources
+        where.append("(r.source_tier IN ('accepted', 'reference', 'external') OR r.source_tier IS NULL)")
+        
         cursor.execute(
             f"""
-            SELECT node_id, timestamp, measurement_id, value, layer, payload_json
-            FROM observations
-            WHERE {' AND '.join(where)}
-            ORDER BY timestamp DESC
+            SELECT o.node_id, o.timestamp, o.measurement_id, o.value, o.layer, o.payload_json, r.source_tier
+            FROM observations o
+            LEFT JOIN node_registry r ON o.node_id = r.id
+            WHERE {" AND ".join(where)}
+            ORDER BY o.timestamp DESC
             LIMIT 100
             """,
             params,
         )
 
         signals: List[FarmSignal] = []
-        for node_id, timestamp, measurement_id, value, layer, payload_json in cursor.fetchall():
+        for node_id, timestamp, measurement_id, value, layer, payload_json, source_tier in cursor.fetchall():
             payload = self.safe_json(payload_json)
             signals.append(
                 FarmSignal(
@@ -474,6 +480,7 @@ class FarmDiagnosticEngine:
                     unit=payload.get("unit"),
                     timestamp=timestamp,
                     source_id=node_id,
+                    source_tier=source_tier or "unknown",
                     confidence=payload.get("confidence", "medium"),
                     metadata=payload,
                 )

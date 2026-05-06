@@ -292,3 +292,7 @@ class NodeAssignmentPayload(BaseModel):
     asset_id: Optional[str] = Field(None, max_length=_ID_MAX, pattern=_ID_PATTERN)
     config: Optional[Dict[str, Any]] = None
     location: Optional[Dict[str, Any]] = None
+
+class NodeAcceptPayload(BaseModel):
+    """Typed schema for POST /api/nodes/{id}/accept."""
+    source_tier: str = Field("accepted", pattern=r'^(accepted|reference|external)$')
