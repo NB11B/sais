@@ -39,9 +39,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin"
-        # WP25.1: Content Security Policy
-        # Note: Allows inline script/style for now due to existing dashboard patterns, 
-        # but restricts to same-origin + trusted CDNs for maps/fonts.
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
@@ -100,7 +97,6 @@ async def get_cards(admin=Depends(require_admin)):
     graph = get_graph()
     try:
         cursor = graph.storage.conn.cursor()
-        # Fetch all cards sorted by newest
         cursor.execute("SELECT payload_json, action_status, notes, updated_at, id FROM cards ORDER BY created_at DESC")
         cards = []
         for row in cursor.fetchall():
@@ -121,7 +117,6 @@ async def update_card_action(card_id: str, data: dict, admin=Depends(require_adm
         status = data.get("status", "pending")
         notes = data.get("notes", "")
         now = datetime.now(timezone.utc).isoformat()
-        
         graph.storage.update_card_action(card_id, status, notes, now)
         return {"status": "success", "card_id": card_id}
     finally:
@@ -146,26 +141,16 @@ from fastapi.responses import JSONResponse
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
-    return JSONResponse(
-        status_code=400,
-        content={"detail": str(exc)},
-    )
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 @app.exception_handler(Exception)
 async def catch_all_handler(request: Request, exc: Exception):
     import traceback
-    # Log full traceback locally for forensics
     print(traceback.format_exc())
-    
-    # Generic error for production to prevent info leakage
     detail = "Internal server error"
     if os.environ.get("SAIS_ENV") == "development":
         detail = str(exc)
-        
-    return JSONResponse(
-        status_code=500,
-        content={"detail": detail},
-    )
+    return JSONResponse(status_code=500, content={"detail": detail})
 
 @app.get("/health")
 async def health_check():
@@ -175,14 +160,13 @@ async def health_check():
 async def post_observation(data: ObservationPayload, graph: FarmGraph = Depends(get_graph), auth=Depends(require_node_auth)):
     from farm_twin.ingest_observation import ingest_sensor_observation_payload
     from farm_twin.cards import generate_water_retention_card
-    
+
     data = data.model_dump(by_alias=True)
-    
+
     try:
-        # WP25/WP27: Check source tier before pipeline behavior
         node_id = data.get("node_id")
         node_reg = graph.storage.get_node_registry(node_id) if node_id else None
-        
+
         INTELLIGENCE_TIERS = {"accepted", "reference"}
         VALID_DATA_TIERS = {"accepted", "reference", "external"}
         source_tier = node_reg.get("source_tier", "pending") if node_reg else "pending"
@@ -190,54 +174,49 @@ async def post_observation(data: ObservationPayload, graph: FarmGraph = Depends(
         data_valid = source_tier in VALID_DATA_TIERS
 
         if not data_valid:
-            # Quarantine: store observation with reduced confidence, skip card generation
             data["confidence"] = "quarantined"
         elif source_tier == "external" and not data.get("confidence"):
-            # External data may enrich diagnostics, but should remain below local accepted sensors.
             data["confidence"] = "low"
-        
-        # Ingest the observation directly. The ingest layer stores accepted/reference/external
-        # as valid observations and quarantines all other tiers.
+
         obs_id = ingest_sensor_observation_payload(graph, data)
-        
-        # Only trigger intelligence pipeline for accepted/reference nodes.
-        # External data informs context but does not activate interpretation by itself.
+
         if node_accepted:
             farm_id = data.get("farm_id")
             zone_id = data.get("zone_id")
             field_id = data.get("field_id")
             paddock_id = data.get("paddock_id")
             layer = data.get("layer")
-            
+
             if farm_id:
-                # Resolve field/zone/paddock linkage if possible
                 if zone_id and not field_id:
                     zone_node = graph.get_node(zone_id)
                     field_id = zone_node["payload"].get("field_id") if zone_node else None
-                
-                # WP27: N-Signal Diagnostic & Attention Engine
+
                 from farm_twin.cards import generate_diagnostic_cards
                 generate_diagnostic_cards(
-                    graph, farm_id, 
-                    field_id=field_id, 
-                    zone_id=zone_id, 
+                    graph, farm_id,
+                    field_id=field_id,
+                    zone_id=zone_id,
                     paddock_id=paddock_id
                 )
-                
-                # Context-specific cards
+
                 if layer == "Weather":
                     from farm_twin.cards import generate_weather_context_card
                     generate_weather_context_card(graph, farm_id, field_id, zone_id)
                 elif layer == "SoilPhysics" or layer == "SoilWater":
-                    from farm_twin.cards import generate_water_retention_card
                     if field_id and zone_id:
                         generate_water_retention_card(graph, farm_id, field_id, zone_id)
-            
+
             from farm_twin.cards import generate_ranch_health_card, generate_source_health_card
             generate_source_health_card(graph, farm_id)
             generate_ranch_health_card(graph, farm_id)
-        
-        return {"status": "success", "obs_id": obs_id, "quarantined": not data_valid, "intelligence_triggered": node_accepted}
+
+        return {
+            "status": "success",
+            "obs_id": obs_id,
+            "quarantined": not data_valid,
+            "intelligence_triggered": node_accepted,
+        }
     finally:
         graph.storage.conn.close()
 
@@ -245,7 +224,7 @@ async def post_observation(data: ObservationPayload, graph: FarmGraph = Depends(
 async def get_gis_assets():
     return {"assets": gis_registry.get_asset_list()}
 
-@app.get("/api/gis/data/{asset_id}
+@app.get("/api/gis/data/{asset_id}")
 async def get_gis_data(asset_id: str):
     data = gis_registry.get_asset_data(asset_id)
     if not data:
@@ -261,32 +240,13 @@ async def get_graph_summary(admin=Depends(require_admin)):
         cursor.execute("SELECT id, type, payload_json FROM nodes")
         for row in cursor.fetchall():
             payload = json.loads(row[2]) if row[2] else {}
-            nodes.append({
-                "id": row[0],
-                "name": payload.get("name", row[0]),
-                "labels": [row[1]],
-                "payload": payload
-            })
-            
+            nodes.append({"id": row[0], "name": payload.get("name", row[0]), "labels": [row[1]], "payload": payload})
+
         cursor.execute("SELECT id, source_id, type, target_id FROM edges")
         edges = []
         for row in cursor.fetchall():
-            edges.append({
-                "id": row[0],
-                "source": row[1],
-                "type": row[2],
-                "target": row[3]
-            })
-        
-        summary = {
-            "nodes": nodes,
-            "edges": edges,
-            "counts": {
-                "nodes": len(nodes),
-                "edges": len(edges)
-            }
-        }
-        return summary
+            edges.append({"id": row[0], "source": row[1], "type": row[2], "target": row[3]})
+        return {"nodes": nodes, "edges": edges, "counts": {"nodes": len(nodes), "edges": len(edges)}}
     finally:
         graph.storage.conn.close()
 
@@ -312,7 +272,6 @@ async def get_layers():
 async def get_farm_profile(admin=Depends(require_admin)):
     graph = get_graph()
     try:
-        # Simple assembly of the farm hierarchy from nodes
         nodes = {"Farm": [], "Field": [], "ManagementZone": [], "Paddock": [], "SensorNode": []}
         cursor = graph.storage.conn.cursor()
         cursor.execute("SELECT type, payload_json FROM nodes")
@@ -394,10 +353,8 @@ async def get_grazing_events(paddock_id: str = None):
             query += " WHERE paddock_id = ?"
             params.append(paddock_id)
         query += " ORDER BY started_at DESC"
-        
         cursor.execute(query, params)
-        events = [json.loads(row[0]) for row in cursor.fetchall()]
-        return {"events": events}
+        return {"events": [json.loads(row[0]) for row in cursor.fetchall()]}
     finally:
         graph.storage.conn.close()
 
@@ -405,14 +362,10 @@ async def get_grazing_events(paddock_id: str = None):
 async def post_grazing_event(payload: GrazingEventPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
-        # 1. Ensure Paddock exists
         if not graph.get_node(payload.paddock_id):
             raise HTTPException(status_code=400, detail="Paddock ID does not exist")
-            
-        # 2. Add Event to Storage
-        event_id = payload.event_id
         graph.storage.add_grazing_event(
-            event_id=event_id,
+            event_id=payload.event_id,
             farm_id=payload.farm_id,
             field_id=payload.field_id,
             paddock_id=payload.paddock_id,
@@ -422,15 +375,10 @@ async def post_grazing_event(payload: GrazingEventPayload, admin=Depends(require
             notes=payload.notes,
             payload=payload.model_dump(by_alias=True)
         )
-        
-        # 3. Create Graph Link
-        graph.add_edge(payload.paddock_id, "HOSTED_EVENT", event_id)
-        
-        # 4. Trigger intelligence cards for this paddock
+        graph.add_edge(payload.paddock_id, "HOSTED_EVENT", payload.event_id)
         from farm_twin.cards import generate_grazing_readiness_card
         generate_grazing_readiness_card(graph, payload.farm_id, payload.paddock_id)
-        
-        return {"status": "success", "id": event_id}
+        return {"status": "success", "id": payload.event_id}
     finally:
         graph.storage.conn.close()
 
@@ -438,35 +386,17 @@ async def post_grazing_event(payload: GrazingEventPayload, admin=Depends(require
 async def post_livestock_observation(payload: LivestockObservationPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
-        # 1. Validation
         if not graph.get_node(payload.paddock_id):
             raise HTTPException(status_code=400, detail=f"Paddock {payload.paddock_id} does not exist")
-        
         if payload.bcs is not None and (payload.bcs < 1 or payload.bcs > 9):
             raise HTTPException(status_code=400, detail="BCS must be between 1 and 9")
-            
         if payload.manure_score is not None and (payload.manure_score < 1 or payload.manure_score > 5):
             raise HTTPException(status_code=400, detail="Manure score must be between 1 and 5")
-
-        # 2. Add to Storage
-        graph.storage.add_livestock_observation(
-            obs_id=payload.id,
-            farm_id=payload.farm_id,
-            paddock_id=payload.paddock_id,
-            timestamp=payload.timestamp,
-            bcs=payload.bcs,
-            manure_score=payload.manure_score,
-            payload=payload.model_dump()
-        )
-        
-        # 3. Create Graph Link
+        graph.storage.add_livestock_observation(payload.id, payload.farm_id, payload.paddock_id, payload.timestamp, payload.bcs, payload.manure_score, payload.model_dump())
         graph.add_edge(payload.paddock_id, "LIVESTOCK_CHECK", payload.id)
-        
-        # 4. Trigger Intelligence
         from farm_twin.cards import generate_livestock_condition_card, generate_heat_stress_card
         generate_livestock_condition_card(graph, payload.farm_id, payload.paddock_id)
         generate_heat_stress_card(graph, payload.farm_id, payload.paddock_id)
-        
         return {"status": "success", "id": payload.id}
     finally:
         graph.storage.conn.close()
@@ -482,7 +412,6 @@ async def post_sensor_node(payload: SensorNodePayload, node_id: str = None, admi
             raise HTTPException(status_code=400, detail="zone_id does not exist")
         if payload.field_id and not graph.get_node(payload.field_id):
             raise HTTPException(status_code=400, detail="field_id does not exist")
-            
         sensor = SensorNode(**payload.model_dump())
         graph.add_node(sensor)
         if sensor.zone_id:
@@ -497,33 +426,15 @@ async def post_sensor_node(payload: SensorNodePayload, node_id: str = None, admi
 async def post_plant_observation(payload: PlantObservationPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
-        # 1. Validation
         if not graph.get_node(payload.paddock_id):
             raise HTTPException(status_code=400, detail=f"Paddock {payload.paddock_id} does not exist")
-        
-        # 2. Add to Storage
-        graph.storage.add_plant_observation(
-            obs_id=payload.id,
-            farm_id=payload.farm_id,
-            paddock_id=payload.paddock_id,
-            timestamp=payload.timestamp,
-            forage_mass=payload.forage_mass_kg_ha,
-            cover=payload.cover_percent,
-            height=payload.height_cm,
-            recovery_score=payload.recovery_score,
-            payload=payload.model_dump()
-        )
-        
-        # 3. Create Graph Link
+        graph.storage.add_plant_observation(payload.id, payload.farm_id, payload.paddock_id, payload.timestamp, payload.forage_mass_kg_ha, payload.cover_percent, payload.height_cm, payload.recovery_score, payload.model_dump())
         graph.add_edge(payload.paddock_id, "PLANT_CHECK", payload.id)
-        
-        # 4. Trigger Intelligence
         from farm_twin.cards import generate_forage_balance_card, generate_plant_recovery_card, generate_grazing_readiness_card, generate_ranch_health_card
         generate_forage_balance_card(graph, payload.farm_id, payload.paddock_id)
         generate_plant_recovery_card(graph, payload.farm_id, payload.paddock_id)
         generate_grazing_readiness_card(graph, payload.farm_id, payload.paddock_id)
         generate_ranch_health_card(graph, payload.farm_id)
-        
         return {"status": "success", "id": payload.id}
     finally:
         graph.storage.conn.close()
@@ -532,23 +443,14 @@ async def post_plant_observation(payload: PlantObservationPayload, admin=Depends
 async def post_soil_observation(payload: SoilObservationPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
-        graph.storage.add_soil_observation(
-            obs_id=payload.id,
-            farm_id=payload.farm_id,
-            paddock_id=payload.paddock_id,
-            timestamp=payload.timestamp,
-            infiltration=payload.infiltration_mm_hr,
-            payload=payload.model_dump()
-        )
+        graph.storage.add_soil_observation(payload.id, payload.farm_id, payload.paddock_id, payload.timestamp, payload.infiltration_mm_hr, payload.model_dump())
         if payload.paddock_id:
             graph.add_edge(payload.paddock_id, "SOIL_TEST", payload.id)
-            
         from farm_twin.cards import generate_soil_function_card, generate_ranch_health_card, generate_plant_recovery_card
         generate_soil_function_card(graph, payload.farm_id, payload.paddock_id)
         if payload.paddock_id:
             generate_plant_recovery_card(graph, payload.farm_id, payload.paddock_id)
         generate_ranch_health_card(graph, payload.farm_id)
-        
         return {"status": "success", "id": payload.id}
     finally:
         graph.storage.conn.close()
@@ -557,26 +459,14 @@ async def post_soil_observation(payload: SoilObservationPayload, admin=Depends(r
 async def post_infrastructure_status(payload: InfrastructureStatusPayload, admin=Depends(require_admin)):
     graph = get_graph()
     try:
-        graph.storage.add_infrastructure_asset(
-            asset_id=payload.id,
-            farm_id=payload.farm_id,
-            asset_type=payload.asset_type,
-            status=payload.status,
-            payload=payload.model_dump()
-        )
-        
-        # Also update graph node if it exists
+        graph.storage.add_infrastructure_asset(payload.id, payload.farm_id, payload.asset_type, payload.status, payload.model_dump())
         node = graph.get_node(payload.id)
         if node:
             node["payload"]["status"] = payload.status
-            # Use the 'type' field from storage.get_node return
-            label = node.get("type", "InfrastructureAsset")
-            graph.storage.add_node(payload.id, label, node["payload"])
-        
+            graph.storage.add_node(payload.id, node.get("type", "InfrastructureAsset"), node["payload"])
         from farm_twin.cards import generate_infrastructure_alert_card, generate_ranch_health_card
         generate_infrastructure_alert_card(graph, payload.farm_id)
         generate_ranch_health_card(graph, payload.farm_id)
-        
         return {"status": "success", "id": payload.id}
     finally:
         graph.storage.conn.close()
@@ -587,26 +477,9 @@ async def post_infrastructure_asset(payload: InfrastructureAssetPayload, admin=D
     graph = get_graph()
     try:
         data = payload.model_dump()
-        asset = InfrastructureAsset(
-            id=data["id"],
-            farm_id=data["farm_id"],
-            asset_type=data["asset_type"],
-            name=data.get("name", data["id"]),
-            status=data.get("status", "unknown"),
-            location_geojson=data.get("location_geojson"),
-            notes=data.get("notes")
-        )
+        asset = InfrastructureAsset(id=data["id"], farm_id=data["farm_id"], asset_type=data["asset_type"], name=data.get("name", data["id"]), status=data.get("status", "unknown"), location_geojson=data.get("location_geojson"), notes=data.get("notes"))
         graph.add_node(asset)
-        
-        # Also add to infrastructure_assets table for alert tracking
-        graph.storage.add_infrastructure_asset(
-            asset_id=asset.id,
-            farm_id=asset.farm_id,
-            asset_type=asset.asset_type,
-            status=asset.status,
-            payload=data
-        )
-        
+        graph.storage.add_infrastructure_asset(asset.id, asset.farm_id, asset.asset_type, asset.status, data)
         return {"status": "success", "id": asset.id}
     finally:
         graph.storage.conn.close()
@@ -617,13 +490,7 @@ async def post_water_asset(payload: WaterAssetPayload, admin=Depends(require_adm
     graph = get_graph()
     try:
         data = payload.model_dump()
-        asset = WaterAsset(
-            id=data["id"],
-            farm_id=data["farm_id"],
-            asset_type=data["asset_type"],
-            name=data["name"],
-            location=data.get("location")
-        )
+        asset = WaterAsset(id=data["id"], farm_id=data["farm_id"], asset_type=data["asset_type"], name=data["name"], location=data.get("location"))
         graph.add_node(asset)
         return {"status": "success", "id": asset.id}
     finally:
@@ -633,38 +500,16 @@ async def post_water_asset(payload: WaterAssetPayload, admin=Depends(require_adm
 
 @app.post("/api/nodes/hello")
 async def node_hello(payload: NodeHelloPayload):
-    """
-    Heartbeat/Discovery endpoint for hardware nodes.
-    Registers unknown nodes as 'pending'.
-    WP25: Open endpoint (no admin token required) but no card generation.
-    """
     node_id = payload.id
-    
     graph = get_graph()
     try:
         now = datetime.now(timezone.utc).isoformat()
         existing = graph.storage.get_node_registry(node_id)
         data = payload.model_dump()
-        
         if not existing:
-            graph.storage.update_node_registry(
-                node_id=node_id,
-                status="pending",
-                first_seen=now,
-                last_seen=now,
-                capabilities=payload.capabilities or {},
-                payload=data
-            )
+            graph.storage.update_node_registry(node_id=node_id, status="pending", first_seen=now, last_seen=now, capabilities=payload.capabilities or {}, payload=data)
         else:
-            graph.storage.update_node_registry(
-                node_id=node_id,
-                last_seen=now,
-                payload=data
-            )
-        
-        # WP25: Pending node discovery does NOT trigger operational cards.
-        # Cards are only generated when accepted nodes report telemetry.
-        
+            graph.storage.update_node_registry(node_id=node_id, last_seen=now, payload=data)
         return {"status": "success", "node_id": node_id}
     finally:
         graph.storage.conn.close()
@@ -673,8 +518,7 @@ async def node_hello(payload: NodeHelloPayload):
 async def get_pending_nodes(admin=Depends(require_admin)):
     graph = get_graph()
     try:
-        nodes = graph.storage.get_nodes_by_status("pending")
-        return {"nodes": nodes}
+        return {"nodes": graph.storage.get_nodes_by_status("pending")}
     finally:
         graph.storage.conn.close()
 
@@ -682,8 +526,7 @@ async def get_pending_nodes(admin=Depends(require_admin)):
 async def get_active_nodes(admin=Depends(require_admin)):
     graph = get_graph()
     try:
-        nodes = graph.storage.get_nodes_by_status("accepted")
-        return {"nodes": nodes}
+        return {"nodes": graph.storage.get_nodes_by_status("accepted")}
     finally:
         graph.storage.conn.close()
 
@@ -711,33 +554,13 @@ async def update_node_assignment(node_id: str, data: NodeAssignmentPayload, admi
     graph = get_graph()
     try:
         assignment = data.model_dump(exclude_none=True)
-        graph.storage.update_node_registry(
-            node_id=node_id,
-            role=assignment.get("role"),
-            farm_id=assignment.get("farm_id"),
-            field_id=assignment.get("field_id"),
-            zone_id=assignment.get("zone_id"),
-            paddock_id=assignment.get("paddock_id"),
-            asset_id=assignment.get("asset_id"),
-            config=assignment.get("config", {})
-        )
-        
-        # WP19: Also update the graph node to reflect assignment
+        graph.storage.update_node_registry(node_id=node_id, role=assignment.get("role"), farm_id=assignment.get("farm_id"), field_id=assignment.get("field_id"), zone_id=assignment.get("zone_id"), paddock_id=assignment.get("paddock_id"), asset_id=assignment.get("asset_id"), config=assignment.get("config", {}))
         reg = graph.storage.get_node_registry(node_id)
         if reg and reg["status"] == "accepted":
-            from farm_twin.models import SensorNode
-            sensor = SensorNode(
-                id=node_id,
-                farm_id=reg.get("farm_id", "local"),
-                node_type=reg.get("role_template", "sensor"),
-                field_id=reg.get("field_id"),
-                zone_id=reg.get("zone_id"),
-                location=data.location
-            )
+            sensor = SensorNode(id=node_id, farm_id=reg.get("farm_id", "local"), node_type=reg.get("role_template", "sensor"), field_id=reg.get("field_id"), zone_id=reg.get("zone_id"), location=data.location)
             graph.add_node(sensor)
             if sensor.zone_id:
                 graph.add_edge(node_id, "DEPLOYED_IN", sensor.zone_id)
-        
         return {"status": "success", "node_id": node_id}
     finally:
         graph.storage.conn.close()
@@ -749,7 +572,6 @@ async def get_node_roles(admin=Depends(require_admin)):
 
 if __name__ == "__main__":
     import uvicorn
-    # WP25: Default bind to localhost. Set SAIS_BIND_LAN=true for LAN access.
     bind_host = "0.0.0.0" if os.environ.get("SAIS_BIND_LAN") == "true" else "127.0.0.1"
     reload_mode = os.environ.get("SAIS_ENV") != "production"
     port = int(os.environ.get("SAIS_PORT", 8000))
