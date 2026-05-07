@@ -2,6 +2,8 @@ import json
 from .graph import FarmGraph
 from .models import Farm, Field, ManagementZone, Paddock, SensorNode, Measurement, Observation
 
+VALID_DATA_TIERS = {"accepted", "reference", "external"}
+
 def ingest_farm_profile(graph: FarmGraph, profile_path: str):
     """
     Parses a farm profile JSON to construct the spatial hierarchy:
@@ -48,6 +50,11 @@ def ingest_sensor_observation_payload(graph: FarmGraph, data: dict):
     """
     Ingests an observation payload directly into the FarmGraph.
     Atomic transaction: validates, checks anti-replay, inserts, and updates registry.
+
+    Accepted, reference, and external source tiers are valid data sources.
+    Only accepted/reference sources should trigger operational intelligence in
+    the API route; this function only decides whether data is stored as valid
+    observation context or quarantined forensic data.
     """
     node_id = data["node_id"]
     obs_id = f"obs-{data['timestamp']}-{node_id}"
@@ -56,11 +63,13 @@ def ingest_sensor_observation_payload(graph: FarmGraph, data: dict):
     # WP25.1: Atomic Transaction Flow
     try:
         with graph.storage.transaction():
-            # 1. Isolation & Status Check
+            # 1. Isolation & Trust-Tier Check
             registry = graph.storage.get_node_registry(node_id)
             node_status = registry["status"] if registry else "pending"
+            source_tier = registry.get("source_tier", node_status) if registry else "pending"
+            data["source_tier"] = source_tier
             
-            if node_status != "accepted":
+            if source_tier not in VALID_DATA_TIERS:
                 # Isolated storage path (still transactional for append-only)
                 graph.storage.add_quarantined_observation(
                     obs_id, node_id, data["timestamp"], data["farm_id"],
@@ -100,7 +109,6 @@ def ingest_sensor_observation_payload(graph: FarmGraph, data: dict):
             )
 
             # 5. Mutate Storage (Observations table)
-            # This is where IntegrityError is most likely to happen.
             graph.storage.add_observation(
                 obs.id, obs.node_id, obs.timestamp, obs.farm_id, 
                 data.get("field_id"), data.get("zone_id"), 
