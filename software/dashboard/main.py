@@ -179,24 +179,29 @@ async def post_observation(data: ObservationPayload, graph: FarmGraph = Depends(
     data = data.model_dump(by_alias=True)
     
     try:
-        # WP25: Check node acceptance status before full pipeline
+        # WP25/WP27: Check source tier before pipeline behavior
         node_id = data.get("node_id")
         node_reg = graph.storage.get_node_registry(node_id) if node_id else None
         
-        # WP27.1: Multi-tier source trust gate
-        # "accepted" and "reference" tiers both trigger intelligence
         INTELLIGENCE_TIERS = {"accepted", "reference"}
+        VALID_DATA_TIERS = {"accepted", "reference", "external"}
         source_tier = node_reg.get("source_tier", "pending") if node_reg else "pending"
         node_accepted = source_tier in INTELLIGENCE_TIERS
+        data_valid = source_tier in VALID_DATA_TIERS
 
-        if not node_accepted:
+        if not data_valid:
             # Quarantine: store observation with reduced confidence, skip card generation
             data["confidence"] = "quarantined"
+        elif source_tier == "external" and not data.get("confidence"):
+            # External data may enrich diagnostics, but should remain below local accepted sensors.
+            data["confidence"] = "low"
         
-        # Ingest the observation directly
+        # Ingest the observation directly. The ingest layer stores accepted/reference/external
+        # as valid observations and quarantines all other tiers.
         obs_id = ingest_sensor_observation_payload(graph, data)
         
-        # Only trigger intelligence pipeline for accepted/reference nodes
+        # Only trigger intelligence pipeline for accepted/reference nodes.
+        # External data informs context but does not activate interpretation by itself.
         if node_accepted:
             farm_id = data.get("farm_id")
             zone_id = data.get("zone_id")
@@ -232,7 +237,7 @@ async def post_observation(data: ObservationPayload, graph: FarmGraph = Depends(
             generate_source_health_card(graph, farm_id)
             generate_ranch_health_card(graph, farm_id)
         
-        return {"status": "success", "obs_id": obs_id, "quarantined": not node_accepted}
+        return {"status": "success", "obs_id": obs_id, "quarantined": not data_valid, "intelligence_triggered": node_accepted}
     finally:
         graph.storage.conn.close()
 
@@ -240,7 +245,7 @@ async def post_observation(data: ObservationPayload, graph: FarmGraph = Depends(
 async def get_gis_assets():
     return {"assets": gis_registry.get_asset_list()}
 
-@app.get("/api/gis/data/{asset_id}")
+@app.get("/api/gis/data/{asset_id}
 async def get_gis_data(asset_id: str):
     data = gis_registry.get_asset_data(asset_id)
     if not data:
